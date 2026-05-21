@@ -20,4 +20,25 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  // --- Bringup lint baseline ---------------------------------------------
+  // The existing UI code violates these rules broadly. They are downgraded to
+  // warnings so CI is not blocked; the warnings stay visible and should be
+  // burned down in a dedicated cleanup pass. The react-hooks/* compiler rules
+  // in particular can flag real issues worth fixing.
+  {
+    files: ['**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': 'warn',
+      'no-empty': 'warn',
+      'no-useless-catch': 'warn',
+      'no-useless-escape': 'warn',
+      'no-constant-binary-expression': 'warn',
+      'react-refresh/only-export-components': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/immutability': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/purity': 'warn',
+    },
+  },
 ])

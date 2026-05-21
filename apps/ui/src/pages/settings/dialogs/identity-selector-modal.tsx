@@ -51,7 +51,7 @@ export function useIdentitySelectorModalModel({ onSelect, children }: IdentitySe
   };
 
   const onSelectIdentity = (identity: IdentityItem) => {
-    let copy = [...internalValue];
+    const copy = [...internalValue];
     const index = copy.findIndex((item) => item.name === identity.name);
     if (index === -1) {
       copy.push(identity);
