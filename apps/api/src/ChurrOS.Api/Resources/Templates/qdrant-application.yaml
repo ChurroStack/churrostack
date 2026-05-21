@@ -1,0 +1,135 @@
+{{~
+  template = {
+    name: "com.churrostack.qdrant",
+    icon: "https://qdrant.tech/img/brand-resources-logos/qdrant-brandmark-red.png",
+    version: "0.0.1",
+    title: "Qdrant Service",
+    target: "com.churrostack.environment.kubernetes",
+    type: "application",
+    description: "A runner that bundles everything needed to easily deploy and run a Qdrant service.",
+    category: {
+      name: "databases",
+      title: "Databases",
+      icon: "lucide:database"
+    },
+    parameters: {
+      image: {
+        title: "Qdrant Image",
+        type: "string",
+        description: "The Docker image to use for the Qdrant container",
+        default_value: ["qdrant/qdrant:v1.16"],
+        required: true
+      } 
+    },
+    extensions: [
+      { name: "storage", template: "com.churrostack.extension.storage", required: true, parameters: { path: "/qdrant/storage" } },
+      { name: "gpu", enabled: false, template: "com.churrostack.extension.gpu", required: false, parameters: { class: "nvidia" } }
+    ],
+    ports: [
+      { 
+        name: "http", port: 6333, protocol: "web", sharing: "members", authentication: "jwt", title: "Qdrant API", icon: "lucide:globe", "description": "Access your qdrant API",
+        transforms: [
+          { PathRemovePrefix: "{{basePath}}/http" }
+        ]
+      },      
+      { 
+        name: "grpc", port: 6334, protocol: "web", sharing: "members", authentication: "jwt", title: "Qdrant gRPC API", icon: "lucide:code", "description": "Access your qdrant gRPC API",
+        transforms: [
+          { PathRemovePrefix: "{{basePath}}/grpc" }
+        ]
+      }
+    ]
+  }
+~}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ id }}
+  namespace: {{ namespace }}
+spec:
+  replicas: 1  
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ id }}
+  template:
+    metadata:
+      labels:
+        app: {{ id }}
+    spec:
+      volumes:
+        - name: qdrant-config
+          configMap:
+            name: {{ id }}
+      containers:
+        - name: qdrant
+          image: {{parameters.image}}
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+          - name: qdrant-config
+            mountPath: /qdrant/config/production.yaml
+            subPath: production.yaml
+          env:          
+          - name: BASE_PATH
+            value: {{basePath}}
+          {{~ for $e in variables ~}}          
+          - name: {{$e.name}}
+            value: "{{$e.value}}"
+          {{~ end ~}}
+          ports:          
+          - containerPort: 6333
+          - containerPort: 6334
+          - containerPort: 6335
+          {{~ if template.requests || template.limits ~}}
+          resources:
+            {{~ if template.requests ~}}
+            requests:
+              {{~ if template.requests.cpu ~}}
+              cpu: "{{ template.requests.cpu }}"
+              {{~ end ~}}
+              {{~ if template.requests.memory ~}}
+              memory: "{{ template.requests.memory }}"
+              {{~ end ~}}
+            {{~ end ~}}
+            {{~ if template.limits ~}}
+            limits:
+              {{~ if template.limits.cpu ~}}
+              cpu: "{{ template.limits.cpu }}"
+              {{~ end ~}}
+              {{~ if template.limits.memory ~}}
+              memory: "{{ template.limits.memory }}"
+              {{~ end ~}}
+              {{~ if template.limits.gpu ~}}
+              nvidia.com/gpu: "{{ template.limits.gpu }}"
+              {{~ end ~}}
+            {{~ end ~}}
+          {{~ end ~}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ id }}
+  namespace: {{ namespace }}
+data:
+  production.yaml: |
+    log_level: INFO
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ id }}
+  namespace: {{ namespace }}
+spec:
+  ports:
+    - name: qdrant-http
+      protocol: TCP
+      port: 6333
+      targetPort: 6333
+    - name: qdrant-grpc
+      protocol: TCP
+      port: 6334
+      targetPort: 6334
+  selector:
+    app: {{ id }}
+  type: ClusterIP

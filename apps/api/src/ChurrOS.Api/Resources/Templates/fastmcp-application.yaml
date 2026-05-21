@@ -1,0 +1,123 @@
+{{~
+  template = {
+    name: "com.churrostack.fastmcp",
+    icon: "https://gofastmcp.com/mintlify-assets/_mintlify/favicons/fastmcp/qwBhxMkd7zOv9Ef0/_generated/favicon/favicon-32x32.png",
+    version: "0.0.1",
+    title: "FastMCP app",
+    target: "com.churrostack.environment.kubernetes",
+    type: "application",
+    description: "A runner that bundles everything needed to easily deploy and run a FastMCP application.",
+    category: {
+      name: "applications",
+      title: "Applications",
+      icon: "lucide:app-window"
+    },
+    parameters: {    
+      entry: {
+        title: "FastMCP entry point",
+        type: "string",
+        description: "The location you want to browser at",
+        default_value: ["main:app"],
+        required: true
+      }
+    },
+    extensions: [
+      { name: "file-browser", template: "com.churrostack.extension.file-browser", required: false, parameters: { path: "/app/home" } },
+      { name: "git-sync", template: "com.churrostack.extension.git-sync", required: false, parameters: { path: "/app/home/code" } },
+      { name: "storage", template: "com.churrostack.extension.storage", required: false, parameters: { path: "/app/home" } },
+      { name: "gpu", enabled: false, template: "com.churrostack.extension.gpu", required: false, parameters: { class: "nvidia" } }
+    ],
+    ports: [
+      { name: "fastmcp", port: 8000, protocol: "web", sharing: "members", authentication: "jwt_dcr", title: "FastMCP app", icon: "lucide:globe", "description": "Access your FastMCP application UI",
+        transforms: [
+          { PathRemovePrefix: "{{basePath}}/fastmcp" }
+        ]
+      },      
+      { name: "terminal", port: 3001, protocol: "web", sharing: "none", authentication: "oidc", title: "Terminal", icon: "lucide:square-terminal", "description": "Access to your application terminal console." }      
+    ]
+  }
+~}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ id }}
+  namespace: {{ namespace }}
+spec:
+  replicas: 1  
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ id }}
+  template:
+    metadata:
+      labels:
+        app: {{ id }}
+    spec:
+      volumes: []
+      terminationGracePeriodSeconds: 0
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+        - name: fastmcp
+          image: quay.io/churrostack/python-streamlit:latest
+          imagePullPolicy: IfNotPresent
+          args: ["-m", "uvicorn", "{{ parameters.entry }}", "--app-dir", "/app/home/code", "--host", "0.0.0.0", "--port", "8000", "--root-path", "{{basePath}}/fastmcp"] 
+          volumeMounts: []
+          env:
+          - name: BASE_PATH
+            value: {{basePath}}
+          - name: ENTRY_POINT
+            value: "{{ trim(parameters.entry,"/") }}"
+          {{~ for $e in variables ~}}          
+          - name: {{$e.name}}
+            value: "{{$e.value}}"
+          {{~ end ~}}
+          ports:          
+          - containerPort: 8000
+          - containerPort: 3001
+          {{~ if template.requests || template.limits ~}}
+          resources:
+            {{~ if template.requests ~}}
+            requests:
+              {{~ if template.requests.cpu ~}}
+              cpu: "{{ template.requests.cpu }}"
+              {{~ end ~}}
+              {{~ if template.requests.memory ~}}
+              memory: "{{ template.requests.memory }}"
+              {{~ end ~}}
+            {{~ end ~}}
+            {{~ if template.limits ~}}
+            limits:
+              {{~ if template.limits.cpu ~}}
+              cpu: "{{ template.limits.cpu }}"
+              {{~ end ~}}
+              {{~ if template.limits.memory ~}}
+              memory: "{{ template.limits.memory }}"
+              {{~ end ~}}
+              {{~ if template.limits.gpu ~}}
+              nvidia.com/gpu: "{{ template.limits.gpu }}"
+              {{~ end ~}}
+            {{~ end ~}}
+          {{~ end ~}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ id }}
+  namespace: {{ namespace }}
+spec:
+  ports:
+    - name: fastmcp-http
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
+    - name: terminal-http
+      protocol: TCP
+      port: 3001
+      targetPort: 3001
+  selector:
+    app: {{ id }}
+  type: ClusterIP

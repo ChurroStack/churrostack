@@ -1,0 +1,107 @@
+{
+  "$comment": "Single source of truth for every ChurroStack container image. Consumed by tools/build-image.sh, tools/changed-images.sh and the GitHub Actions workflows. 'watch' = git paths whose changes trigger a rebuild; 'versionArg' = pass --build-arg VERSION (.NET images only).",
+  "registry": "quay.io/churrostack",
+  "images": [
+    {
+      "name": "churros-api",
+      "context": "apps/api/src",
+      "dockerfile": "apps/api/src/ChurrOS.Api/Dockerfile",
+      "watch": ["apps/api"],
+      "versionArg": true
+    },
+    {
+      "name": "churros-ui",
+      "context": "apps/ui",
+      "dockerfile": "apps/ui/Dockerfile",
+      "watch": ["apps/ui"],
+      "versionArg": false
+    },
+    {
+      "name": "churrun-kubernetes",
+      "context": "apps/churrun-kubernetes/src",
+      "dockerfile": "apps/churrun-kubernetes/src/Dockerfile",
+      "watch": ["apps/churrun-kubernetes"],
+      "versionArg": true
+    },
+    {
+      "name": "churrun-tunnel",
+      "context": "apps/churrun-tunnel",
+      "dockerfile": "apps/churrun-tunnel/Dockerfile",
+      "watch": ["apps/churrun-tunnel"],
+      "versionArg": false
+    },
+    {
+      "name": "churros-tunnel-proxy",
+      "context": "apps/tunnel-server/src",
+      "dockerfile": "apps/tunnel-server/src/ChurrOS.TunnelService/Dockerfile",
+      "watch": [
+        "apps/tunnel-server/src/ChurrOS.TunnelService",
+        "apps/tunnel-server/src/ChurrOS.TunnelService.slnx"
+      ],
+      "versionArg": true
+    },
+    {
+      "name": "churros-tunnel",
+      "context": "apps/tunnel-server/src/ChurrOS.Ssh",
+      "dockerfile": "apps/tunnel-server/src/ChurrOS.Ssh/Dockerfile",
+      "watch": ["apps/tunnel-server/src/ChurrOS.Ssh"],
+      "versionArg": false
+    },
+    {
+      "name": "python-streamlit",
+      "context": "apps/images/images/python",
+      "dockerfile": "apps/images/images/python/Dockerfile",
+      "watch": ["apps/images/images/python"],
+      "versionArg": false
+    },
+    {
+      "name": "python-streamlit-x11",
+      "context": "apps/images/images/python-x11",
+      "dockerfile": "apps/images/images/python-x11/Dockerfile",
+      "watch": ["apps/images/images/python-x11"],
+      "versionArg": false
+    },
+    {
+      "name": "python-torch-nvidia",
+      "context": "apps/images/images/python-torch-nvidia",
+      "dockerfile": "apps/images/images/python-torch-nvidia/Dockerfile",
+      "watch": ["apps/images/images/python-torch-nvidia"],
+      "versionArg": false
+    },
+    {
+      "name": "code-server",
+      "context": "apps/images/images/code-server",
+      "dockerfile": "apps/images/images/code-server/Dockerfile",
+      "watch": ["apps/images/images/code-server"],
+      "versionArg": false
+    },
+    {
+      "name": "vllm-openai",
+      "context": "apps/images/images/vllm-openai",
+      "dockerfile": "apps/images/images/vllm-openai/Dockerfile",
+      "watch": ["apps/images/images/vllm-openai"],
+      "versionArg": false
+    },
+    {
+      "name": "ttyd",
+      "context": "apps/images/images/ttyd",
+      "dockerfile": "apps/images/images/ttyd/Dockerfile",
+      "watch": ["apps/images/images/ttyd"],
+      "versionArg": false
+    },
+    {
+      "name": "file-browser",
+      "context": "apps/images/images/file-browser",
+      "dockerfile": "apps/images/images/file-browser/Dockerfile",
+      "watch": ["apps/images/images/file-browser"],
+      "versionArg": false
+    },
+    {
+      "name": "git-sync",
+      "context": "apps/images/images/git-sync",
+      "dockerfile": "apps/images/images/git-sync/Dockerfile",
+      "watch": ["apps/images/images/git-sync"],
+      "versionArg": false
+    }
+  ]
+}

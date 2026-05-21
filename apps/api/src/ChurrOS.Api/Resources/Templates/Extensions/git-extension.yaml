@@ -1,0 +1,76 @@
+{{~
+  template = {
+    name: "com.churrostack.extension.git-sync",
+    version: "0.0.1",
+    icon: "lucide:folder-git-2",
+    title: "GIT Sync extension",
+    target: "com.churrostack.environment.kubernetes",
+    type: "extension",
+    description: "Clone the Git repository and ensure it stays synchronized with your code folder",
+    order: 100,
+    category: {
+      name: "extensions",
+      title: "Extensions",
+      icon: "lucide:folder-tree"
+    },
+    singleton: true,
+    parameters: {    
+      path: {
+        title: "Code home path",
+        type: "string",
+        description: "The location you want to clone the git repository",
+        default_value: ["/app/home/code"],
+        required: true
+      },
+      url: {
+        title: "Git repository Url",
+        type: "string",
+        description: "The git clone repository url",
+        required: true
+      },      
+      branch: {
+        title: "Branch",
+        type: "string",
+        description: "The branch you want to clone",
+        default_value: ["main"],
+        required: false
+      },
+      username: {
+        title: "Git username",
+        type: "string",
+        description: "The username you want to use to authenticate to the git repository",
+        required: false
+      },
+      password: {
+        title: "Git password or PAT",
+        ui_hint: "password",
+        type: "string",
+        description: "The password or Personal Access Token (PAT) you want to use to authenticate to the git repository",
+        required: false
+      }
+    }
+  }
+~}}
+patches:
+  - target:
+      kind: Deployment
+      name: {{ target }}
+    operations:
+      - op: add
+        path: "/spec/template/spec/containers/-"
+        value:
+          name: {{ id }}
+          image: quay.io/churrostack/git-sync:latest
+          imagePullPolicy: IfNotPresent
+          volumeMounts: []
+          ports: []
+          env:
+          - name: GIT_REPOSITORY_URL
+            value: {{parameters.url}}
+          - name: GIT_REPOSITORY_BRANCH
+            value: {{parameters.branch}}
+          - name: GIT_REPOSITORY_USERNAME
+            value: {{parameters.username}}
+          - name: GIT_REPOSITORY_PASSWORD
+            value: {{parameters.password}}
+      

@@ -1,0 +1,56 @@
+churrun:
+  name: {{ name }}
+  encryption_key: "{{encryption_key}}"
+  persistence:
+    enabled: true
+    pvc:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+  sizes:
+    - name: 500mx1Gi
+      title: Tiny (0.5 vCPU 1 GB RAM)
+      requests:
+        cpu: "250m"
+        memory: 512Mi
+      limits:
+        cpu: "500m"
+        memory: 1Gi
+    - name: 2x8gb
+      title: Medium (2 vCPU 8 GB RAM)
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "2"
+        memory: 8Gi
+
+kubernetes:
+  service_mesh: "none"
+  storage_class: "" # openebs-hostpath, managed-csi, etc
+  shared_storage_class: "" # openebs-hostpath, managed-csi, etc
+  limits:
+    cpu: "32"
+    memory: "64Gi"
+    storage: "1Ti"
+    gpu: ""    
+  connection:
+    host: "https://kubernetes.default.svc"
+    client_certificate: ""
+    client_key: ""
+
+tunnel:
+  host: "{{tunnel_host}}"
+  port: 8443
+  user: "tunnel"
+  tunnel_port: {{tunnel_port}}
+  id_ed25519: |
+    {{tunnel_private_key}}
+  known_hosts: |
+    {{tunnel_host}} {{tunnel_public_key}}
+  
+images:
+    churrun: "quay.io/churrostack/churrun-kubernetes:latest"
+    tunnel: "quay.io/churrostack/churrun-tunnel:latest"

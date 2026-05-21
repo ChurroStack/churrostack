@@ -1,0 +1,124 @@
+{{~
+  template = {
+    name: "com.churrostack.docker",
+    icon: "lucide:container",
+    version: "0.0.1",
+    title: "Docker application",
+    target: "com.churrostack.environment.kubernetes",
+    type: "application",
+    description: "A runner that bundles everything needed to easily deploy and run a generic Docker application.",
+    category: {
+      name: "applications",
+      title: "Applications",
+      icon: "lucide:app-window"
+    },
+    parameters: {
+      image: {
+        title: "Docker Image",
+        type: "string",
+        description: "The docker image to use for the application",
+        required: true
+      }, 
+      imagePullSecret: {
+        title: "Docker Image pull secret",
+        type: "string",
+        description: "The docker image pull secret to use when downloading docker image",
+        required: false
+      }, 
+      port: {
+        title: "Port",
+        type: "number",
+        description: "The web port number",
+        default_value: ["8000"],
+        required: true
+      } 
+    },
+    extensions: [
+      { name: "storage", template: "com.churrostack.extension.storage", required: false, parameters: { path: "/app/home" } },
+      { name: "gpu", enabled: false, template: "com.churrostack.extension.gpu", required: false, parameters: { class: "nvidia" } }
+    ],
+    ports: [
+      { 
+        name: "http", port: 8000, protocol: "web", sharing: "members", authentication: "oidc", title: "Generic Web App", icon: "lucide:globe", "description": "Access your generic web application",
+        transforms: [
+          { PathRemovePrefix: "{{basePath}}/http" }
+        ]
+      },
+    ]
+  }
+~}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ id }}
+  namespace: {{ namespace }}
+spec:
+  replicas: 1  
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ id }}
+  template:
+    metadata:
+      labels:
+        app: {{ id }}
+    spec:
+      volumes: []
+      {{~ if parameters.imagePullSecret  ~}}
+      imagePullSecrets:
+      - name: {{ parameters.imagePullSecret }}
+      {{~ end ~}}
+      containers:
+        - name: docker-app
+          image: {{parameters.image}}
+          imagePullPolicy: IfNotPresent
+          volumeMounts: []
+          env:          
+          - name: BASE_PATH
+            value: {{basePath}}
+          {{~ for $e in variables ~}}          
+          - name: {{$e.name}}
+            value: "{{$e.value}}"
+          {{~ end ~}}
+          ports:          
+          - containerPort: {{parameters.port}}
+          {{~ if template.requests || template.limits ~}}
+          resources:
+            {{~ if template.requests ~}}
+            requests:
+              {{~ if template.requests.cpu ~}}
+              cpu: "{{ template.requests.cpu }}"
+              {{~ end ~}}
+              {{~ if template.requests.memory ~}}
+              memory: "{{ template.requests.memory }}"
+              {{~ end ~}}
+            {{~ end ~}}
+            {{~ if template.limits ~}}
+            limits:
+              {{~ if template.limits.cpu ~}}
+              cpu: "{{ template.limits.cpu }}"
+              {{~ end ~}}
+              {{~ if template.limits.memory ~}}
+              memory: "{{ template.limits.memory }}"
+              {{~ end ~}}
+              {{~ if template.limits.gpu ~}}
+              nvidia.com/gpu: "{{ template.limits.gpu }}"
+              {{~ end ~}}
+            {{~ end ~}}
+          {{~ end ~}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ id }}
+  namespace: {{ namespace }}
+spec:
+  ports:
+    - name: http
+      protocol: TCP
+      port: {{parameters.port}}
+      targetPort: {{parameters.port}}
+  selector:
+    app: {{ id }}
+  type: ClusterIP

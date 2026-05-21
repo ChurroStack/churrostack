@@ -1,0 +1,160 @@
+{{~
+  template = {
+    name: "com.churrostack.vllm",
+    icon: "https://raw.githubusercontent.com/vllm-project/media-kit/refs/heads/main/vLLM-Logo.svg",
+    version: "0.0.1",
+    title: "vLLM application (GPU)",
+    target: "com.churrostack.environment.kubernetes",
+    type: "application",
+    description: "A container that bundles everything needed to easily host a LLM model with vLLM and GPU support.",
+    category: {
+      name: "applications",
+      title: "Applications",
+      icon: "lucide:brain-circuit"
+    },
+    parameters: {    
+      model: {
+        title: "Huggingface Model",
+        type: "string",
+        description: "The model you want to serve at",
+        default_value: ["Qwen/Qwen3-8B"],
+        required: true
+      },
+      args: {
+        title: "Additional args",
+        type: "string",
+        description: "Any custom args you want to pass to vLLM",
+        required: false,
+        transformer: "cmdargs"
+      },
+      image: {
+        title: "vLLM Image",
+        type: "string",
+        description: "The Docker image to use for the vLLM container",
+        default_value: ["quay.io/churrostack/vllm-openai:latest"],
+        required: true
+      }
+    },
+    extensions: [
+      { name: "storage", template: "com.churrostack.extension.storage", required: false, parameters: { path: "/app/home", size: "32Gi" } },
+      { name: "gpu", template: "com.churrostack.extension.gpu", required: true, parameters: { class: "nvidia" } }
+    ],
+    ports: [
+      { name: "llm", port: 8000, protocol: "oai", sharing: "members", authentication: "oidc", title: "OpenAI API", icon: "lucide:globe", "description": "Access your LLM using OpenAI compatible API",
+        uri: "{{basePath}}/llm/v1/models",
+        transforms: [
+          { PathRemovePrefix: "{{basePath}}/llm" }
+        ]
+      }      
+    ]
+  }
+~}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ id }}
+  namespace: {{ namespace }}
+spec:
+  replicas: 1  
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ id }}
+  template:
+    metadata:
+      labels:
+        app: {{ id }}
+    spec:
+      volumes: []
+      terminationGracePeriodSeconds: 0
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      initContainers:
+      - name: download-model
+        image: {{parameters.image}}
+        command: ["python3", "-c"]
+        args:
+          - |
+            from huggingface_hub import snapshot_download
+            snapshot_download("{{parameters.model}}")
+        env:
+          - name: HF_HOME
+            value: /app/home/huggingface
+          - name: HUGGINGFACE_HUB_CACHE
+            value: /app/home/huggingface/hub        
+          {{~ for $e in variables ~}}          
+          - name: {{$e.name}}
+            value: "{{$e.value}}"
+          {{~ end ~}}
+        volumeMounts: []
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          runAsUser: 999
+          runAsGroup: 999
+          allowPrivilegeEscalation: false
+      containers:
+        - name: vllm
+          image: {{parameters.image}}
+          imagePullPolicy: IfNotPresent
+          args:
+          - "{{parameters.model}}"
+          - "--port"
+          - "8000"
+          - "--trust-remote-code"
+          {{~ for $arg in parameters.args ~}}   
+          - "{{$arg}}"
+          {{~ end ~}}
+          volumeMounts: []
+          ports:          
+          - containerPort: 8000
+          env:
+          - name: HF_HOME
+            value: "/app/home/huggingface"
+          - name: HUGGINGFACE_HUB_CACHE
+            value: "/app/home/huggingface/hub"
+          {{~ for $e in variables ~}}          
+          - name: {{$e.name}}
+            value: "{{$e.value}}"
+          {{~ end ~}}
+          {{~ if template.requests || template.limits ~}}
+          resources:
+            {{~ if template.requests ~}}
+            requests:
+              {{~ if template.requests.cpu ~}}
+              cpu: "{{ template.requests.cpu }}"
+              {{~ end ~}}
+              {{~ if template.requests.memory ~}}
+              memory: "{{ template.requests.memory }}"
+              {{~ end ~}}
+            {{~ end ~}}
+            {{~ if template.limits ~}}
+            limits:
+              {{~ if template.limits.cpu ~}}
+              cpu: "{{ template.limits.cpu }}"
+              {{~ end ~}}
+              {{~ if template.limits.memory ~}}
+              memory: "{{ template.limits.memory }}"
+              {{~ end ~}}
+              {{~ if template.limits.gpu ~}}
+              "{{ template.limits.gpu }}": "1"
+              {{~ end ~}}
+            {{~ end ~}}
+          {{~ end ~}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ id }}
+  namespace: {{ namespace }}
+spec:
+  ports:
+    - name: vllm-http
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
+  selector:
+    app: {{ id }}
+  type: ClusterIP

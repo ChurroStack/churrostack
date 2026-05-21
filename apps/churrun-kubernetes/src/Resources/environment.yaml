@@ -1,0 +1,81 @@
+name: {{name}}
+basePath: {{basePath}}
+description: Kubernetes based environment
+sizes:
+  - name: 100mx64mb
+    title: Minimal (0.1 vCPU 64 MB RAM)
+    requests:
+      cpu: "100m"
+      memory: 64Mi
+    limits:
+      cpu: "100m"
+      memory: 64Mi      
+  - name: 500mx1Gi
+    title: Tiny (0.5 vCPU 1 GB RAM)
+    requests:
+      cpu: "250m"
+      memory: 512Mi
+    limits:
+      cpu: "500m"
+      memory: 1Gi
+  - name: 1x2gb
+    title: Small (1 vCPU 2 GB RAM)
+    requests:
+      cpu: "0.5"
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+  - name: 2x8gb
+    title: Medium (2 vCPU 8 GB RAM)
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 8Gi
+  - name: 8x32gb
+    title: Large (8 vCPU 32 GB RAM)
+    requests:
+      cpu: "4"
+      memory: 8Gi
+    limits:
+      cpu: "8"
+      memory: 32Gi
+  - name: gpu-8x32gb
+    title: GPU Small (8 vCPU 32 GB RAM 1 GPU)
+    requests:
+      cpu: "4"
+      memory: 8Gi
+    limits:
+      cpu: "8"
+      memory: 32Gi
+      gpu: "1"
+limits:
+  {{~ if get_config "Kubernetes:Limits:Cpu" ~}}
+  cpu: "{{ get_config "Kubernetes:Limits:Cpu" }}"
+  {{~ end ~}}
+  {{~ if get_config "Kubernetes:Limits:Memory" ~}}
+  memory: "{{ get_config "Kubernetes:Limits:Memory" }}"
+  {{~ end ~}}
+  {{~ if get_config "Kubernetes:Limits:Gpu" ~}}
+  gpu: "{{ get_config "Kubernetes:Limits:Gpu" }}"
+  {{~ end ~}}
+  {{~ if get_config "Kubernetes:Limits:Storage" ~}}
+  storage: "{{ get_config "Kubernetes:Limits:Storage" }}"
+  {{~ end ~}}
+{{~ if get_config("Kubernetes:ServiceMesh") || get_config("Kubernetes:StorageClass") || get_config("Kubernetes:SharedStorageClass") || get_config("Kubernetes:Namespace") ~}}
+capabilities:
+  {{~ if get_config "Kubernetes:ServiceMesh" ~}}
+  service_mesh: {{ get_config "Kubernetes:ServiceMesh" }}  
+  {{~ end ~}}
+  {{~ if get_config "Kubernetes:UserStorageClass" ~}}
+  storage_class: {{ get_config "Kubernetes:StorageClass" }}  
+  {{~ end ~}}
+  {{~ if get_config "Kubernetes:SharedStorageClass" ~}}
+  shared_storage_class: {{ get_config "Kubernetes:SharedStorageClass" }}  
+  {{~ end ~}}  
+  {{~ if get_config "Kubernetes:Namespace" ~}}
+  namespace: {{ get_config "Kubernetes:Namespace" }}  
+  {{~ end ~}}  
+{{~ end ~}}

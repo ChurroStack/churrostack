@@ -1,0 +1,26 @@
+{
+  "name": "ui",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/ui/src",
+  "tags": ["type:app", "stack:vite"],
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": { "cwd": "apps/ui", "command": "pnpm dev" }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
+      "options": { "cwd": "apps/ui", "command": "pnpm build" }
+    },
+    "preview": {
+      "executor": "nx:run-commands",
+      "options": { "cwd": "apps/ui", "command": "pnpm preview" }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "cwd": "apps/ui", "command": "pnpm lint" }
+    }
+  }
+}

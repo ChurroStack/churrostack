@@ -1,0 +1,38 @@
+{
+  "name": "tunnel-server",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/tunnel-server/src",
+  "tags": ["type:app", "stack:dotnet"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/src/**/bin", "{projectRoot}/src/**/obj"],
+      "options": {
+        "cwd": "apps/tunnel-server",
+        "command": "dotnet build src/ChurrOS.TunnelService.slnx"
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/tunnel-server",
+        "command": "dotnet run --project src/ChurrOS.TunnelService/ChurrOS.TunnelService.csproj"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/tunnel-server",
+        "command": "dotnet test src/ChurrOS.TunnelService.slnx"
+      }
+    },
+    "publish": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/tunnel-server",
+        "command": "dotnet publish src/ChurrOS.TunnelService/ChurrOS.TunnelService.csproj -c Release"
+      }
+    }
+  }
+}

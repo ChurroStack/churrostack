@@ -1,0 +1,26 @@
+sizes:
+  - name: 500mx1Gi
+    title: Tiny (0.5 vCPU 1 GB RAM)
+    requests:
+      cpu: "250m"
+      memory: 512Mi
+    limits:
+      cpu: "500m"
+      memory: 1Gi
+  - name: 2x8gb
+    title: Medium (2 vCPU 8 GB RAM)
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 8Gi
+  - name: 4g40gb
+    title: Half-GPU (1/4 40GB H100 - 8 CPU, 40 GB RAM)
+    requests:
+      cpu: "8"
+      memory: 40Gi
+    limits:
+      cpu: "8"
+      memory: 40Gi
+      gpu: "nvidia.com/mig-4g.40gb"
