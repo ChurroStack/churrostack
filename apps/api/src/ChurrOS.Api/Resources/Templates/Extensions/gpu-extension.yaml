@@ -1,0 +1,38 @@
+{{~
+  template = {
+    name: "com.churrostack.extension.gpu",
+    version: "0.0.1",
+    icon: "lucide:gpu",
+    title: "GPU extension",
+    type: "extension",
+    target: "com.churrostack.environment.kubernetes",
+    description: "Add GPU support to your application.",
+    order: 1000,
+    category: {
+      name: "extensions",
+      title: "Extensions",
+      icon: "lucide:gpu"
+    },
+    singleton: false,
+    parameters: {
+      class: {
+        title: "Class",
+        type: "list",
+        description: "GPU class",
+        default_value: ["nvidia"],
+        options: [
+          { title: "nvidia", value: "nvidia" }
+        ],
+        required: true
+      }
+    }
+  }
+~}}
+patches:
+  - target:
+      kind: Deployment
+      name: {{ target }}
+    operations:
+      - op: add
+        path: "/spec/template/spec/runtimeClassName"
+        value: "{{ parameters.class }}"

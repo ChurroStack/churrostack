@@ -1,0 +1,18 @@
+name: ChurrOS
+
+services:
+  churros-postgresql:
+    image: postgres:18-alpine
+    container_name: churros-postgresql
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata:/var/lib/postgresql/data 
+    ports:
+      - "5432:5432"
+
+volumes:
+  pgdata:
+
+  

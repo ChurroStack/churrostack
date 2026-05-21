@@ -1,0 +1,32 @@
+{
+  "name": "api",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/api/src",
+  "tags": ["type:app", "stack:dotnet"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/src/**/bin", "{projectRoot}/src/**/obj"],
+      "options": { "cwd": "apps/api", "command": "dotnet build src/ChurrOS.slnx" }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/api",
+        "command": "dotnet run --project src/ChurrOS.AppHost/ChurrOS.AppHost.csproj"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": { "cwd": "apps/api", "command": "dotnet test src/ChurrOS.slnx" }
+    },
+    "publish": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/api",
+        "command": "dotnet publish src/ChurrOS.Api/ChurrOS.Api.csproj -c Release"
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+#!/bin/bash
+
+exec /usr/bin/google-chrome.real \
+  --disable-gpu \
+  --use-gl=osmesa \
+  --disable-dev-shm-usage \
+  --disable-extensions \
+  --disable-sync \
+  --disable-software-rasterizer \
+  --no-first-run \
+  --no-default-browser-check \
+  --user-data-dir=/chrome-profile \
+  --window-size=1920,1080 \
+  "$@"
+EOF

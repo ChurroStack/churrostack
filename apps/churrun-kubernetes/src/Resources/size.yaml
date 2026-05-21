@@ -1,0 +1,30 @@
+patches:
+  - target:
+      kind: Deployment
+      name: {{ id }}
+    operations:
+      - op: add
+        path: "/spec/template/spec/containers/0/resources"
+        value:          
+          {{~ if requests ~}}
+          requests:
+            {{~ if requests.cpu ~}}
+            cpu: "{{ requests.cpu }}"
+            {{~ end ~}}
+            {{~ if requests.memory ~}}
+            memory: "{{ requests.memory }}"
+            {{~ end ~}}
+          {{~ end ~}}
+          {{~ if limits ~}}
+          limits:
+            {{~ if limits.cpu ~}}
+            cpu: "{{ limits.cpu }}"
+            {{~ end ~}}
+            {{~ if limits.memory ~}}
+            memory: "{{ limits.memory }}"
+            {{~ end ~}}
+            {{~ if limits.gpu ~}}
+            "{{ limits.gpu }}": 1
+            {{~ end ~}}
+          {{~ end ~}}
+      

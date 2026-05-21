@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "defaultBase": "main",
+  "namedInputs": {
+    "default": [
+      "{projectRoot}/**/*",
+      "!{projectRoot}/dist/**/*",
+      "!{projectRoot}/**/bin/**/*",
+      "!{projectRoot}/**/obj/**/*",
+      "sharedGlobals"
+    ],
+    "production": ["default"],
+    "sharedGlobals": []
+  },
+  "targetDefaults": {
+    "build": { "dependsOn": ["^build"], "cache": true },
+    "test": { "cache": true },
+    "lint": { "cache": true },
+    "publish": { "dependsOn": ["build"] }
+  }
+}

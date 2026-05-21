@@ -1,0 +1,18 @@
+﻿namespace ChurrunKubernetes.Models.Logs
+{
+    public class KubernetesDeploymentCondition
+    {
+        public DateTimeOffset Timestamp { get; private set; }
+        public string Type { get; private set; }
+        public string Reason { get; private set; }
+        public string Message { get; private set; }
+
+        public KubernetesDeploymentCondition(DateTimeOffset timestamp, string type, string reason, string message)
+        {
+            Timestamp = timestamp;
+            Type = type;
+            Reason = reason;
+            Message = message;
+        }
+    }
+}

@@ -1,0 +1,101 @@
+{{~
+  template = {
+    name: "com.churrostack.extension.storage",
+    version: "0.0.1",
+    icon: "lucide:hard-drive",
+    title: "Storage extension",
+    type: "extension",
+    target: "com.churrostack.environment.kubernetes",
+    description: "Add persistent storage to your application.",
+    order: 1000,
+    category: {
+      name: "extensions",
+      title: "Extensions",
+      icon: "lucide:app-window"
+    },
+    singleton: false,
+    parameters: {    
+      path: {
+        title: "Mount path",
+        type: "string",
+        description: "The location you want to mount your persistent storage",
+        default_value: ["/app/home"],
+        required: true
+      },
+      size: {
+        title: "Size",
+        type: "list",
+        description: "Storage size",
+        default_value: ["1Gi"],
+        options: [
+          { title: "1Gi", value: "1Gi" },
+          { title: "2Gi", value: "2Gi" },
+          { title: "4Gi", value: "4Gi" },
+          { title: "8Gi", value: "8Gi" }
+        ],
+        required: true
+      }
+    }
+  }
+~}}
+patches:
+  - target:
+      kind: Deployment
+      name: {{ target }}
+    operations:
+      - op: add
+        path: "/spec/template/spec/volumes/-"
+        value:
+          name: {{ id }}-volume
+          {{~ if !storageClass || storageClass == "emptyDir" ~}}
+          emptyDir:
+            sizeLimit: "{{ parameters.size }}"
+          {{~ end ~}}          
+          {{~ if storageClass && storageClass != "emptyDir" ~}}
+          persistentVolumeClaim:
+            claimName: "{{ target }}-{{ id }}"
+          {{~ end ~}}          
+      - op: add
+        path: "$.spec.template.spec.containers[*].volumeMounts"
+        type: "jsonpath"
+        value:
+          mountPath: {{ parameters.path }}
+          name: {{ id }}-volume        
+      - op: add
+        path: "$.spec.template.spec.initContainers[*].volumeMounts"
+        type: "jsonpath"
+        value:
+          mountPath: {{ parameters.path }}
+          name: {{ id }}-volume
+{{~ if storageClass && storageClass == "hostPath" ~}}
+manifests:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: {{ target }}-{{ id }}
+      namespace: {{ namespace }}
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: "{{ parameters.size }}"
+      hostPath:
+        path: "/var/lib/churrun-{{ target }}-{{ id }}"
+        type: DirectoryOrCreate
+{{~ end ~}}          
+{{~ if storageClass && storageClass != "hostPath" ~}}
+manifests:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: {{ target }}-{{ id }}
+      namespace: {{ namespace }}
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: "{{ parameters.size }}"
+      storageClassName: "{{ storageClass }}"
+{{~ end ~}}          

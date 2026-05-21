@@ -1,0 +1,47 @@
+{{~
+  template = {
+    name: "com.churrostack.extension.terminal",
+    version: "0.0.1",
+    icon: "lucide:square-terminal",
+    title: "Terminal extension",
+    target: "com.churrostack.environment.kubernetes",
+    type: "extension",
+    description: "Access to application terminal console.",
+    order: 100,
+    category: {
+      name: "extensions",
+      title: "Extensions",
+      icon: "lucide:app-window"
+    },
+    singleton: true,
+    ports: [
+      { name: "terminal", port: 3001, protocol: "web", sharing: "none", authentication: "oidc", title: "Terminal", icon: "lucide:square-terminal", "description": "Access to your application terminal console." }
+    ]
+  }
+~}}
+patches:
+  - target:
+      kind: Deployment
+      name: {{ target }}
+    operations:
+      - op: add
+        path: "/spec/template/spec/containers/-"
+        value:
+          name: {{ id }}
+          image: quay.io/churrostack/ttyd:latest       
+          args: ["ttyd", "-p", "3001", "-w", "{{ parameters.path }}", "-b", "{{basePath}}/terminal", "-W", "bash"] 
+          imagePullPolicy: IfNotPresent          
+          volumeMounts: []
+          ports:          
+          - containerPort: 3001
+  - target:
+      kind: Service
+      name: {{ target }}
+    operations:
+      - op: add
+        path: "/spec/ports/-"
+        value:
+          name: {{ id }}-http
+          port: 3001
+          targetPort: 3001
+      

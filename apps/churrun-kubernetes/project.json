@@ -1,0 +1,38 @@
+{
+  "name": "churrun-kubernetes",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/churrun-kubernetes/src",
+  "tags": ["type:app", "stack:dotnet"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/src/**/bin", "{projectRoot}/src/**/obj"],
+      "options": {
+        "cwd": "apps/churrun-kubernetes",
+        "command": "dotnet build ChurrunKubernetes.slnx"
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/churrun-kubernetes",
+        "command": "dotnet run --project src/ChurrunKubernetes.csproj"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/churrun-kubernetes",
+        "command": "dotnet test ChurrunKubernetes.slnx"
+      }
+    },
+    "publish": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/churrun-kubernetes",
+        "command": "dotnet publish src/ChurrunKubernetes.csproj -c Release"
+      }
+    }
+  }
+}

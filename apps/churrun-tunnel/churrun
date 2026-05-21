@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# churrun-tunnel — ChurroStack SSH client (placeholder stub).
+# Replace this file with the real bash SSH client source.
+set -euo pipefail
+
+echo "churrun-tunnel: placeholder stub — copy the real client script here."

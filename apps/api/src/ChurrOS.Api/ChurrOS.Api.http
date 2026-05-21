@@ -1,0 +1,6 @@
+@ChurrOS.Api_HostAddress = http://localhost:5204
+
+GET {{ChurrOS.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

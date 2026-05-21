@@ -1,0 +1,56 @@
+{{~
+  template = {
+    name: "com.churrostack.extension.file-browser",
+    version: "0.0.1",
+    icon: "lucide:folder-tree",
+    title: "File browser extension",
+    target: "com.churrostack.environment.kubernetes",
+    type: "extension",
+    description: "Access to your home folder",
+    order: 100,
+    category: {
+      name: "extensions",
+      title: "Extensions",
+      icon: "lucide:folder-tree"
+    },
+    singleton: true,
+    parameters: {    
+      path: {
+        title: "Home path",
+        type: "string",
+        description: "The location you want to browser at",
+        default_value: ["/app/home"],
+        required: true
+      }
+    },
+    ports: [
+      { name: "files", port: 3002, protocol: "web", sharing: "none", authentication: "oidc", title: "File browser", icon: "lucide:folder-tree", "description": "Access to your application home folder." }
+    ]
+  }
+~}}
+patches:
+  - target:
+      kind: Deployment
+      name: {{ target }}
+    operations:
+      - op: add
+        path: "/spec/template/spec/containers/-"
+        value:
+          name: {{ id }}
+          image: quay.io/churrostack/file-browser:latest
+          imagePullPolicy: IfNotPresent          
+          args: ["-a", "0.0.0.0", "-p", "3002", "-r", "{{ parameters.path }}", "--noauth", "--baseURL", "{{basePath}}/files"] 
+          volumeMounts: []
+          ports:          
+          - containerPort: 3002
+  - target:
+      kind: Service
+      name: {{ target }}
+    operations:
+      - op: add
+        path: "/spec/ports/-"
+        value:
+          name: {{ id }}-http
+          port: 3002
+          targetPort: 3002
+      

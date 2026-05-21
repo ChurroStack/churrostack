@@ -1,0 +1,96 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>b1ddb545-1c80-4f26-aaed-54b21f623156</UserSecretsId>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Resources\Import\import-identities-template.xlsx" />
+    <None Remove="Resources\Templates\Extensions\file-browser-extension.yaml" />
+    <None Remove="Resources\Templates\Extensions\storage-extension.yaml" />
+    <None Remove="Resources\Templates\streamlit-application.yaml" />
+    <None Remove="Resources\Templates\streamlit-x11-application.yaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Import\import-identities-template.xlsx" />
+    <EmbeddedResource Include="Resources\Templates\Extensions\git-extension.yaml" />
+    <EmbeddedResource Include="Resources\Templates\Extensions\gpu-extension.yaml" />
+    <EmbeddedResource Include="Resources\Templates\Extensions\terminal-extension.yaml" />
+    <EmbeddedResource Include="Resources\Templates\Extensions\file-browser-extension.yaml" />
+    <EmbeddedResource Include="Resources\Templates\Extensions\storage-extension.yaml" />
+    <EmbeddedResource Include="Resources\Templates\fastapi-x11-application.yaml" />
+    <EmbeddedResource Include="Resources\Templates\fastmcp-application.yaml" />
+    <EmbeddedResource Include="Resources\Templates\fastapi-application.yaml" />
+    <EmbeddedResource Include="Resources\Templates\docker-application.yaml" />
+    <EmbeddedResource Include="Resources\Templates\streamlit-torch.yaml" />
+    <EmbeddedResource Include="Resources\Templates\streamlit-application.yaml" />
+    <EmbeddedResource Include="Resources\Templates\qdrant-application.yaml" />
+    <EmbeddedResource Include="Resources\Templates\vllm-application.yaml" />
+    <EmbeddedResource Include="Resources\Templates\streamlit-x11-application.yaml" />
+    <EmbeddedResource Include="Resources\helm-values.yaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
+    <PackageReference Include="DispatchR.Mediator" Version="2.1.1" />
+    <PackageReference Include="EFCore.NamingConventions" Version="10.0.0-rc.2" />
+    <PackageReference Include="IdGen" Version="3.0.7" />
+    <PackageReference Include="LazyCache.AspNetCore" Version="2.4.0" />
+    <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
+    <PackageReference Include="Mapster.DependencyInjection" Version="1.0.1" />
+    <PackageReference Include="Mapster.EFCore" Version="5.1.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="10.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.StackExchangeRedis" Version="10.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.1" />
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <PackageReference Include="OpenIddict.AspNetCore" Version="7.2.0" />
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.2.0" />
+    <PackageReference Include="OpenIddict.Quartz" Version="7.2.0" />
+    <PackageReference Include="Quartz" Version="3.15.1" />
+    <PackageReference Include="Quartz.AspNetCore" Version="3.15.1" />
+    <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.15.1" />
+    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.15.1" />
+    <PackageReference Include="Quartz.Jobs" Version="3.15.1" />
+    <PackageReference Include="Quartz.Serialization.Json" Version="3.15.1" />
+    <PackageReference Include="Quartz.Serialization.SystemTextJson" Version="3.15.1" />
+    <PackageReference Include="Scriban" Version="6.5.2" />
+    <PackageReference Include="SSH.NET" Version="2025.1.0" />
+    <PackageReference Include="StackExchange.Redis" Version="2.10.1" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore.Swagger" Version="10.1.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.1.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.1.0" />
+    <PackageReference Include="System.CommandLine" Version="2.0.1" />
+    <PackageReference Include="UUIDNext" Version="4.2.2" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+    <PackageReference Include="YamlDotNet.System.Text.Json" Version="1.7.1" />
+    <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
+    <PackageReference Include="Yarp.Telemetry.Consumption" Version="2.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ChurrOS.ServiceDefaults\ChurrOS.ServiceDefaults.csproj" />
+  </ItemGroup>
+	
+</Project>

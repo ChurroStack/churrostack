@@ -1,0 +1,50 @@
+Port 8443
+Protocol 2
+AddressFamily any
+ListenAddress 0.0.0.0
+
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/ssh_host_rsa_key
+
+PermitRootLogin no
+StrictModes yes
+MaxAuthTries 3
+MaxSessions 2
+LoginGraceTime 20
+
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+ChallengeResponseAuthentication no
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+
+PermitTTY no
+X11Forwarding no
+AllowAgentForwarding no
+PermitUserEnvironment no
+PermitTunnel no
+PermitUserRC no
+
+AllowTcpForwarding remote
+GatewayPorts yes
+
+ClientAliveInterval 30
+ClientAliveCountMax 2
+TCPKeepAlive yes
+Compression no
+
+LogLevel VERBOSE
+SyslogFacility AUTH
+
+# Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com
+# MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
+# KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org
+
+AllowUsers tunnel
+
+ForceCommand echo "This account only allows port forwarding"
+
+# Dynamic key lookup via Postgres
+AuthorizedKeysFile none
+AuthorizedKeysCommand /usr/local/bin/reverse_tunnel_key_lookup.sh %k
+AuthorizedKeysCommandUser root

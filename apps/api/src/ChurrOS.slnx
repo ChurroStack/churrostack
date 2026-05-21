@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/Aspire/">
+    <Project Path="ChurrOS.AppHost/ChurrOS.AppHost.csproj" Id="073b4adf-9ec7-4e36-9b29-f4484c923959" />
+    <Project Path="ChurrOS.ServiceDefaults/ChurrOS.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/Elementos de la solución/">
+    <File Path="../deps/docker-compose.yml" />
+    <File Path="../LICENSE" />
+    <File Path="../README.md" />
+  </Folder>
+  <Project Path="ChurrOS.Api/ChurrOS.Api.csproj" />
+</Solution>

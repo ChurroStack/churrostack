@@ -1,0 +1,190 @@
+{{~
+  template = {
+    name: "com.churrostack.streamlit",
+    icon: "https://streamlit.io/images/brand/streamlit-mark-color.png",
+    version: "0.0.1",
+    title: "Streamlit app",
+    target: "com.churrostack.environment.kubernetes",
+    type: "application",
+    description: "A runner that bundles everything needed to easily deploy and run a Streamlit application.",
+    category: {
+      name: "applications",
+      title: "Applications",
+      icon: "lucide:app-window"
+    },
+    parameters: {    
+      entry: {
+        title: "Relative Python entry point file",
+        type: "string",
+        description: "The location you want to browser at",
+        default_value: ["main.py"],
+        required: true
+      },
+      deps: {
+        title: "Linux packages to install (apt install)",
+        type: "string",
+        description: "Comma-separated list of Linux packages to install",
+        default_value: [""],
+        required: false
+      },
+      install_script: {
+        title: "Initialization script (dpkg into /app/local)",
+        type: "string",
+        description: "Advanced installation script",
+        default_value: [""],
+        ui_hint: "textarea",
+        required: false
+      }
+    },
+    extensions: [
+      { name: "file-browser", template: "com.churrostack.extension.file-browser", required: false, parameters: { path: "/app/home" } },
+      { name: "git-sync", template: "com.churrostack.extension.git-sync", required: false, parameters: { path: "/app/home/code" } },
+      { name: "storage", template: "com.churrostack.extension.storage", required: false, parameters: { path: "/app/home" } },
+      { name: "gpu", enabled: false, template: "com.churrostack.extension.gpu", required: false, parameters: { class: "nvidia" } }
+    ],
+    ports: [
+      { name: "streamlit", port: 8501, protocol: "web", sharing: "members", authentication: "oidc", title: "Streamlit app", icon: "lucide:globe", "description": "Access your streamlit application UI" },      
+      { name: "terminal", port: 3001, protocol: "web", sharing: "none", authentication: "oidc", title: "Terminal", icon: "lucide:square-terminal", "description": "Access to your application terminal console." }      
+    ]
+  }
+~}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ id }}
+  namespace: {{ namespace }}
+spec:
+  replicas: 1  
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ id }}
+  template:
+    metadata:
+      labels:
+        app: {{ id }}
+    spec:
+      {{~ if !parameters.deps || parameters.deps == ""  ~}}
+      volumes: []
+      {{~ end ~}}
+      {{~ if parameters.deps && parameters.deps != ""  ~}}
+      volumes:
+      - name: apt-local-packages
+        emptyDir: {}
+      {{~ end ~}}
+      terminationGracePeriodSeconds: 0
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999      
+      {{~ if parameters.deps && parameters.deps != "" ~}}
+      initContainers:
+      - name: apt-local-packages
+        image: python:3.13-slim
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
+          runAsNonRoot: false
+        command:
+          - bash
+          - -c
+          - |
+            set -e
+            apt-get update
+            
+            {{ parameters.install_script }}
+
+            packages="{{parameters.deps}}"
+            
+            mkdir -p /tmp/apt /app/local
+            chown _apt:root /tmp/apt
+            chmod 755 /tmp/apt
+            cd /tmp/apt
+
+            for pkg in $packages; do
+              apt-get download $(apt-cache depends $pkg | grep Depends | awk '{print $2}') $pkg
+            done
+
+            for f in *.deb; do
+              dpkg-deb -x "$f" /app/local
+            done
+
+        volumeMounts:
+          - name: apt-local-packages
+            mountPath: /app/local
+      {{~ end ~}}
+      containers:
+        - name: streamlit
+          image: quay.io/churrostack/python-streamlit:latest
+          imagePullPolicy: IfNotPresent
+          args: ["-m", "streamlit", "run", "/app/home/code/{{ trim(parameters.entry,"/") }}", "--server.headless", "true", "--server.enableCORS", "false", "--server.enableXsrfProtection", "false", "--browser.gatherUsageStats", "false", "--server.port", "8501", "--server.baseUrlPath", "{{basePath}}/streamlit"]           
+          {{~ if !parameters.deps || parameters.deps == ""  ~}}
+          volumeMounts: []
+          {{~ end ~}}
+          {{~ if parameters.deps && parameters.deps != "" ~}}
+          volumeMounts:
+          - name: apt-local-packages
+            mountPath: /app/local
+          {{~ end ~}}
+          env:          
+          {{~ if parameters.deps && parameters.deps != "" ~}}
+          - name: LD_LIBRARY_PATH
+            value: /app/local/usr/lib:/app/local/lib:/app/local/lib/x86_64-linux-gnu:/app/local/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/lib
+          - name: PATH
+            value: /app/local/usr/bin/x86_64-linux-gnu:/app/local/usr/bin:/usr/local/bin:/usr/bin:/bin:/bin/x86_64-linux-gnu
+          {{~ end ~}}
+          - name: BASE_PATH
+            value: {{basePath}}
+          - name: ENTRY_POINT
+            value: "{{ trim(parameters.entry,"/") }}"
+          {{~ for $e in variables ~}}          
+          - name: {{$e.name}}
+            value: "{{$e.value}}"
+          {{~ end ~}}
+          ports:          
+          - containerPort: 8501
+          - containerPort: 3001
+          {{~ if template.requests || template.limits ~}}
+          resources:
+            {{~ if template.requests ~}}
+            requests:
+              {{~ if template.requests.cpu ~}}
+              cpu: "{{ template.requests.cpu }}"
+              {{~ end ~}}
+              {{~ if template.requests.memory ~}}
+              memory: "{{ template.requests.memory }}"
+              {{~ end ~}}
+            {{~ end ~}}
+            {{~ if template.limits ~}}
+            limits:
+              {{~ if template.limits.cpu ~}}
+              cpu: "{{ template.limits.cpu }}"
+              {{~ end ~}}
+              {{~ if template.limits.memory ~}}
+              memory: "{{ template.limits.memory }}"
+              {{~ end ~}}
+              {{~ if template.limits.gpu ~}}
+              nvidia.com/gpu: "{{ template.limits.gpu }}"
+              {{~ end ~}}
+            {{~ end ~}}
+          {{~ end ~}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ id }}
+  namespace: {{ namespace }}
+spec:
+  ports:
+    - name: streamlit-http
+      protocol: TCP
+      port: 8501
+      targetPort: 8501
+    - name: terminal-http
+      protocol: TCP
+      port: 3001
+      targetPort: 3001
+  selector:
+    app: {{ id }}
+  type: ClusterIP
