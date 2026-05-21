@@ -38,6 +38,16 @@ pnpm nx <target> <project>   # e.g. pnpm nx serve api, pnpm nx build ui
 pnpm nx run-many -t build    # run a target across every project
 ```
 
+### Releases & CI
+
+Container images are versioned and published via a release-please–driven
+GitHub Actions pipeline. Pull requests need a [Conventional Commit](https://www.conventionalcommits.org/)
+title; merging the aggregated **release PR** cuts a `vX.Y.Z` tag and publishes
+the changed images to `quay.io/churrostack`. See
+[`docs/release-process.md`](docs/release-process.md) for the full flow and the
+one-time repository setup. To build an image locally for testing, run its
+`build.sh` (e.g. `apps/api/src/build.sh`) — a host-arch build, no push.
+
 ## License
 
 ChurroStack is released under the **GNU Affero General Public License v3.0 (AGPLv3)**.

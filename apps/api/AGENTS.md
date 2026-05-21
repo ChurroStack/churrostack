@@ -66,8 +66,10 @@ Other useful direct commands (from `apps/api/src/ChurrOS.Api`):
 - `dotnet ef migrations add <Name>` — add an EF Core migration.
 - `dotnet ef database update` — apply migrations manually (normally automatic;
   see Database below).
-- `src/build.sh` — builds and pushes the production image
-  `quay.io/churrostack/churros-api:latest` (`linux/amd64`).
+- `src/build.sh` — builds a local test image
+  `quay.io/churrostack/churros-api:0.0.1-local` (host arch, no push). It
+  delegates to `tools/build-image.sh`; CI publishes versioned images — see
+  [`docs/release-process.md`](../../docs/release-process.md).
 
 ## Architecture
 
@@ -243,7 +245,9 @@ and `OPENIDDICT_ENCRYPTION_PASSWORD` for the PFX certs at `/app/certs/`.
 `src/ChurrOS.Api/Dockerfile` is a multi-stage build: `dotnet/sdk:10.0`
 restores/builds/publishes (`-p:UseAppHost=false`), then `dotnet/aspnet:10.0`
 runs `dotnet ChurrOS.Api.dll` (exposes `8080`/`8081`, non-root). `build.sh`
-builds for `linux/amd64` and pushes `quay.io/churrostack/churros-api:latest`.
+builds a local test image; versioned `linux/amd64` images are built and pushed
+to `quay.io/churrostack/churros-api` by CI on release (see
+[`docs/release-process.md`](../../docs/release-process.md)).
 In production OpenIddict requires `/app/certs/signing.pfx` and
 `/app/certs/encryption.pfx` — startup throws if they are missing.
 

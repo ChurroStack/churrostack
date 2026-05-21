@@ -93,12 +93,13 @@ Run Nx targets from the repo root (defined in `project.json`):
 Note: there is currently no test project in the solution, so `test` is a
 no-op until one is added.
 
-Build/push container images (run from `apps/tunnel-server/src/`):
-- `./build.sh` — builds and pushes the proxy image
-  `quay.io/churrostack/churros-tunnel-proxy:latest`
-  (`-f ./ChurrOS.TunnelService/Dockerfile`, platform `linux/amd64`).
-- `./ChurrOS.Ssh/build.sh` — builds and pushes the SSH image
-  `quay.io/churrostack/churros-tunnel:latest` (run from inside `ChurrOS.Ssh/`).
+Build container images locally for testing (each `build.sh` delegates to
+`tools/build-image.sh`, builds for the host arch, no push):
+- `src/build.sh` — proxy image `quay.io/churrostack/churros-tunnel-proxy:0.0.1-local`.
+- `src/ChurrOS.Ssh/build.sh` — SSH image `quay.io/churrostack/churros-tunnel:0.0.1-local`.
+
+CI builds and pushes versioned `linux/amd64` images on release — see
+[`docs/release-process.md`](../../docs/release-process.md).
 
 ## Request / traffic flow
 
@@ -125,7 +126,7 @@ apps/tunnel-server/
 ├── AGENTS.md  (CLAUDE.md → symlink to this file)
 └── src/
     ├── ChurrOS.TunnelService.slnx
-    ├── build.sh                  # build+push proxy image
+    ├── build.sh                  # local build helper (proxy image)
     ├── .dockerignore
     ├── ChurrOS.TunnelService/    # .NET YARP proxy
     │   ├── Program.cs            # all proxy logic + header transform
@@ -138,7 +139,7 @@ apps/tunnel-server/
         ├── sshd_config
         ├── entrypoint.sh
         ├── reverse_tunnel_key_lookup.sh
-        └── build.sh
+        └── build.sh              # local build helper (SSH image)
 ```
 
 Entry points: `ChurrOS.TunnelService/Program.cs` (proxy);

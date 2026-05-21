@@ -50,14 +50,16 @@ This runs `bash churrun` in `apps/churrun-tunnel` — see the Files section; in 
 current tree `churrun` is a placeholder, so this prints a stub message and
 exits. The real workload runs via Docker, not this Nx target.
 
-Build and publish the Docker image (from `apps/churrun-tunnel`):
+Build the Docker image locally for testing (from `apps/churrun-tunnel`):
 
 ```
 bash build.sh
 ```
 
-`build.sh` runs `docker build --platform linux/amd64 -t
-quay.io/churrostack/churrun-tunnel:latest .` followed by `docker push`.
+`build.sh` delegates to `tools/build-image.sh` and builds
+`quay.io/churrostack/churrun-tunnel:0.0.1-local` for the host architecture
+without pushing. Versioned `linux/amd64` images are built and pushed by CI on
+release — see [`docs/release-process.md`](../../docs/release-process.md).
 
 ## Files
 
@@ -67,7 +69,8 @@ quay.io/churrostack/churrun-tunnel:latest .` followed by `docker push`.
   real client script replaces it.
 - **`entrypoint.sh`** — the real client logic and the container `ENTRYPOINT`.
   Validates env vars and launches `autossh` (see How it works).
-- **`build.sh`** — builds and pushes the `linux/amd64` Docker image to Quay.
+- **`build.sh`** — thin wrapper over `tools/build-image.sh`; builds a local
+  test image (no push). CI handles versioned publishing.
 - **`Dockerfile`** — Alpine 3.19 image; installs `openssh-client`, `autossh`,
   `bash`, `ca-certificates`; creates an unprivileged `tunnel` user (uid 10001)
   and runs as that user; sets up `~/.ssh` and `~/.ssh/keys` with `0700`; copies
@@ -108,8 +111,8 @@ Mounted file (not an env var) — **required**:
 
 The container runs on the customer's private server:
 
-1. Build/publish the image: `bash build.sh` (pushes to
-   `quay.io/churrostack/churrun-tunnel:latest`).
+1. Use a CI-published image `quay.io/churrostack/churrun-tunnel:<version>` (or
+   `:latest`). For local testing, `bash build.sh` builds `:0.0.1-local`.
 2. On the private server, run the image with the required env vars set and the
    private key mounted, e.g.:
 

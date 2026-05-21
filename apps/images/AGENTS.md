@@ -38,7 +38,7 @@ Gotchas:
   use the Nx target as written you must pass the nested path, e.g.
   `--args="--image=images/python"` — which then tags the image
   `churrostack/images/python:latest`. The target predates the `images/`
-  subdirectory layout; prefer the per-image `build.sh` for correct tags.
+  subdirectory layout; prefer the per-image `build.sh` (or CI) for correct tags.
 - The Nx target does not push and does not set `--platform`.
 
 ## Images
@@ -72,8 +72,9 @@ Every image directory follows the same shape:
 
 - `Dockerfile` — the build recipe; declares `USER_UID`/`USER_GID`/`TARGETARCH`
   build args and switches to the non-root user before the entrypoint.
-- `build.sh` — a 1–2 line script: `docker build --platform linux/amd64` with
-  the canonical tag, followed (for most images) by `docker push`.
+- `build.sh` — a thin wrapper over `tools/build-image.sh`; builds the image
+  locally for testing (host arch, no push). The image's name/context lives in
+  `.github/images.json`.
 - `init.sh` / `entrypoint.sh` — the container entrypoint. Used by `python*`,
   `code-server`, `file-browser` and `git-sync`. `ttyd` and `vllm-openai` have
   no script.
@@ -81,26 +82,27 @@ Every image directory follows the same shape:
   `/usr/bin/ttyd`), `google-chrome` (a Chrome launcher wrapper with headless
   flags, installed over the real binary).
 
-To add a new image: create `images/<name>/` with a `Dockerfile`, a `build.sh`
-following the tagging convention below, and an `init.sh`/`entrypoint.sh` if it
-needs startup logic. Keep the non-root `appuser`/`USER_UID 999` pattern and
-the bundled-binary approach for reproducibility.
+To add a new image: create `images/<name>/` with a `Dockerfile` and an
+`init.sh`/`entrypoint.sh` if it needs startup logic, add a `build.sh` wrapper,
+and register the image in `.github/images.json` (name, context, dockerfile,
+watch path) so CI builds and publishes it. Keep the non-root
+`appuser`/`USER_UID 999` pattern and the bundled-binary approach for
+reproducibility.
 
 ## Build & publish
 
-The authoritative way to build and publish is the per-image `build.sh`, run
-from inside the image directory. Each script:
+`.github/images.json` is the single source of truth for every image's name,
+context and Dockerfile. CI publishes versioned `linux/amd64` images to quay.io
+on release — see [`docs/release-process.md`](../../docs/release-process.md).
 
-1. Builds for `linux/amd64` (`docker build --platform linux/amd64`).
-2. Tags as `quay.io/churrostack/<name>:latest` — the registry is **quay.io**,
-   not Docker Hub. Note tag names do not always match the directory name
-   (e.g. `python/` → `quay.io/churrostack/python-streamlit:latest`,
-   `python-x11/` → `python-streamlit-x11:latest`).
-3. Pushes to quay.io (`docker push`).
+For local testing, run an image's `build.sh` (a wrapper over
+`tools/build-image.sh`): it builds `quay.io/churrostack/<name>:0.0.1-local` for
+the host arch and does **not** push. Note tag names do not always match the
+directory name (e.g. `python/` → `python-streamlit`, `python-x11/` →
+`python-streamlit-x11`); the mapping is defined in `.github/images.json`.
 
 The Nx `docker-build` target tags with the bare `churrostack/...` prefix
-(no registry, no push) and is mainly useful for local image builds — the
-canonical tags come from `build.sh`.
+(no registry, no push) and predates this setup — prefer `build.sh` or CI.
 
 ## Deprecated images
 

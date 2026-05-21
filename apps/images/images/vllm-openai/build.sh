@@ -1,2 +1,5 @@
-docker build --platform linux/amd64 -t quay.io/churrostack/vllm-openai:latest .
-docker push quay.io/churrostack/vllm-openai:latest
+#!/usr/bin/env bash
+# Thin wrapper around tools/build-image.sh (image defined in .github/images.json).
+#   ./build.sh                    -> local image vllm-openai:0.0.1-local (+ :local), no push
+#   ./build.sh <version> --push   -> build linux/amd64 and push to quay.io
+exec "$(git rev-parse --show-toplevel)/tools/build-image.sh" vllm-openai "$@"

@@ -188,7 +188,7 @@ apps/churrun-kubernetes/
     Program.cs                Entry point / DI / pipeline
     appsettings.json          Configuration
     JsonSettings.cs           Shared System.Text.Json options (camelCase)
-    Dockerfile, build.sh      Container build & push
+    Dockerfile, build.sh      Container image (build.sh = local build helper)
     sizes.yaml                Available deployment sizes (env info)
     Controllers/              Thin HTTP layer (Deployments, Templates,
                               Environment, Monitoring)
@@ -250,8 +250,10 @@ sensitive-data logging and detailed errors.
 (build) and `aspnet:10.0` (runtime), runs as the non-root `$APP_UID`, exposes
 8080/8081, entrypoint `dotnet ChurrunKubernetes.dll`. **Build context is
 `src/`** (the Dockerfile `COPY`s `ChurrunKubernetes.csproj` from the context
-root). `src/build.sh` builds and pushes
-`quay.io/churrostack/churrun-kubernetes:latest` for `linux/amd64`.
+root). `src/build.sh` builds a local test image
+(`quay.io/churrostack/churrun-kubernetes:0.0.1-local`, host arch, no push); CI
+publishes versioned `linux/amd64` images on release — see
+[`docs/release-process.md`](../../docs/release-process.md).
 
 ## Conventions & gotchas
 

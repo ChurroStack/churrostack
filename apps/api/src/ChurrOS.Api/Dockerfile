@@ -11,17 +11,19 @@ EXPOSE 8081
 # Esta fase se usa para compilar el proyecto de servicio
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
+ARG VERSION=0.0.0
 WORKDIR /src
 COPY ["ChurrOS.Api/ChurrOS.Api.csproj", "ChurrOS.Api/"]
 RUN dotnet restore "./ChurrOS.Api/ChurrOS.Api.csproj"
 COPY . .
 WORKDIR "/src/ChurrOS.Api"
-RUN dotnet build "./ChurrOS.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "./ChurrOS.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build /p:Version=$VERSION
 
 # Esta fase se usa para publicar el proyecto de servicio que se copiará en la fase final.
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./ChurrOS.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+ARG VERSION=0.0.0
+RUN dotnet publish "./ChurrOS.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false /p:Version=$VERSION
 
 # Esta fase se usa en producción o cuando se ejecuta desde VS en modo normal (valor predeterminado cuando no se usa la configuración de depuración)
 FROM base AS final
