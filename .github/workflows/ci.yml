@@ -89,3 +89,32 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
           build-args: ${{ matrix.image.versionArg && 'VERSION=0.0.0-ci' || '' }}
+
+  # Single, stable status check to require in branch protection. The other job
+  # names are descriptive ("Lint / test / build (affected)") and docker-validate
+  # is a dynamic matrix, so none of them are reliable to require directly.
+  # Require ONLY this `ci-ok` check on main.
+  ci-ok:
+    name: ci-ok
+    needs: [pr-title, validate, detect, docker-validate]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all CI jobs passed
+        run: |
+          echo "pr-title:        ${{ needs.pr-title.result }}"
+          echo "validate:        ${{ needs.validate.result }}"
+          echo "detect:          ${{ needs.detect.result }}"
+          echo "docker-validate: ${{ needs.docker-validate.result }}"
+          for r in \
+            "${{ needs.pr-title.result }}" \
+            "${{ needs.validate.result }}" \
+            "${{ needs.detect.result }}" \
+            "${{ needs.docker-validate.result }}"; do
+            # 'skipped' is fine (e.g. docker-validate when no image changed).
+            if [ "$r" != "success" ] && [ "$r" != "skipped" ]; then
+              echo "::error::A required CI job did not pass."
+              exit 1
+            fi
+          done
+          echo "All required CI jobs passed."
