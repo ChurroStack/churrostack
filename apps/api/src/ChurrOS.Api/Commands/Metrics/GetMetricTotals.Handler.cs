@@ -46,10 +46,11 @@ namespace ChurrOS.Api.Commands.Metrics
 
             var metricsIds = metrics.Select(o => o.MetricId).ToList();
 
-            // Get all metric values (for all previous series) for the given time range
+            // Get all metric values (for all previous series) for the given time range.
+            // Include a 5-minute lookback so the counter Rate() has a predecessor sample for the first in-range bucket.
             var dateFrom = from.AddMinutes(-5);
             var metricValues = await _context.Set<MetricValue>()
-                .Where(o => metricsIds.Contains(o.MetricId) && from <= o.Timestamp && o.Timestamp <= to)
+                .Where(o => metricsIds.Contains(o.MetricId) && dateFrom <= o.Timestamp && o.Timestamp <= to)
                 .Select(o => new MetricValueEntry(o.MetricId, o.Timestamp, o.Value))
                 .ToListAsync();
 
@@ -68,7 +69,7 @@ namespace ChurrOS.Api.Commands.Metrics
             // For counter metrics, we need to calculate the rate of change
             if (metricType == Models.Dtos.MetricType.Counter)
             {
-                metricValues = metricValues.Rate(from);
+                metricValues = metricValues.Rate();
             }
 
             // Calculate the granularity based on the time range

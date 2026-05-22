@@ -58,8 +58,8 @@ const CpuUsageChart = ({
   }
   return (
     <div className="overflow-hidden rounded-md border flex flex-col gap-4 min-h-0 w-full h-full p-2">
-      <h3 className="text-sm font-semibold">{t('Cpu Usage (millicores)')}</h3>
-      <ChartContainer config={chartConfig} title={t('Cpu Usage (millicores)')} className="h-[200px] w-full">
+      <h3 className="text-sm font-semibold">{t('Cpu Usage (cores)')}</h3>
+      <ChartContainer config={chartConfig} title={t('Cpu Usage (cores)')} className="h-[200px] w-full">
         <BarChart accessibilityLayer data={data?.values ?? []}>
           <CartesianGrid vertical={false} />
           <XAxis

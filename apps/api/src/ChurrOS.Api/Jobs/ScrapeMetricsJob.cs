@@ -108,11 +108,13 @@ namespace ChurrOS.Api.Jobs
                     };
                     if (metric.CpuUsage.HasValue)
                     {
-                        _metricsAggregatorService.AddMetric(new MetricItem(accountId, AddMetricName(labels, "cpu_usage"), DateTimeOffset.Now, metric.CpuUsage.Value, MetricType.Counter));
+                        // CPU usage from the runner is an instantaneous reading (cores), like memory — a gauge, not a counter.
+                        _metricsAggregatorService.AddMetric(new MetricItem(accountId, AddMetricName(labels, "cpu_usage"), DateTimeOffset.Now, metric.CpuUsage.Value, MetricType.Gauge));
                     }
                     if (metric.GpuUsage.HasValue)
                     {
-                        _metricsAggregatorService.AddMetric(new MetricItem(accountId, AddMetricName(labels, "gpu_usage"), DateTimeOffset.Now, metric.GpuUsage.Value, MetricType.Counter));
+                        // GPU usage from the runner is an instantaneous reading — a gauge, not a counter.
+                        _metricsAggregatorService.AddMetric(new MetricItem(accountId, AddMetricName(labels, "gpu_usage"), DateTimeOffset.Now, metric.GpuUsage.Value, MetricType.Gauge));
                     }
                     if (metric.MemoryUsage.HasValue)
                     {
