@@ -65,25 +65,23 @@ namespace ChurrOS.Api.Commands.Metrics
             // For counter metrics, we need to calculate the rate of change
             if (metricType == Models.Dtos.MetricType.Counter)
             {
-                metricValues = metricValues.Rate(from);
+                metricValues = metricValues.Rate();
             }
-
-            bool doAverage = metric.Labels?["metric"] == "cpu_usage";
 
             // Calculate the granularity based on the time range
             var diff = to - from;
             var finalMetrics = new List<MetricValueItem>();
             if (diff.TotalDays > 1)
             {
-                finalMetrics = metricValues.AdjustOverTime(metricType, from, to, "yyyyMMdd", average: doAverage);
+                finalMetrics = metricValues.AdjustOverTime(metricType, from, to, "yyyyMMdd");
             }
             else if (diff.TotalHours > 1)
             {
-                finalMetrics = metricValues.AdjustOverTime(metricType, from, to, "yyyyMMddHH", average: doAverage);
+                finalMetrics = metricValues.AdjustOverTime(metricType, from, to, "yyyyMMddHH");
             }
             else
             {
-                finalMetrics = metricValues.AdjustOverTime(metricType, from, to, average: doAverage);
+                finalMetrics = metricValues.AdjustOverTime(metricType, from, to);
             }
 
             return new MetricValuesItem(metricName, request.Labels, finalMetrics.ToArray());

@@ -39,7 +39,7 @@ const BytesOutChart = ({
     return (
       <Alert className="mb-4" variant="destructive">
         <AlertCircle className="size-4" />
-        <AlertTitle>{t('Error loading bytes in chart')}</AlertTitle>
+        <AlertTitle>{t('Error loading bytes out chart')}</AlertTitle>
         <AlertDescription>{error}</AlertDescription>
       </Alert>
     );

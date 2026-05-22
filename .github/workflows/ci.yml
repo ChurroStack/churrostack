@@ -45,6 +45,14 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      # Run one `dotnet` command serially so the SDK first-run experience
+      # (NuGet migrations) completes once and writes its sentinel. Without
+      # this, the parallel `dotnet build`/`dotnet test` tasks from `nx
+      # affected` below each trigger the first-run migration and race to
+      # create the NuGet-Migrations mutex dir under /tmp/.dotnet/shm,
+      # failing with `mkdir(...) == -1; errno == EEXIST`.
+      - name: Warm up .NET SDK first-run experience
+        run: dotnet nuget locals all --list
       - run: pnpm install --frozen-lockfile
       # Targets that don't exist for a project are skipped; new test/lint
       # targets are picked up automatically once added.
