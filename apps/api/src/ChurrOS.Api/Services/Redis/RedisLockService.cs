@@ -34,14 +34,9 @@ namespace ChurrOS.Api.Services.Redis
                     _logger.LogWarning("[RedisLock] timeout key={Key} waited={WaitMs}ms", key, (long)waitFor.TotalMilliseconds);
                     return null;
                 }
-                try
-                {
-                    await Task.Delay(PollDelay, cancellationToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    return null;
-                }
+                // Let OperationCanceledException propagate so the caller sees the cancellation
+                // rather than a misleading "Environment is busy" from the ?? throw branch.
+                await Task.Delay(PollDelay, cancellationToken);
             }
         }
 

@@ -83,7 +83,7 @@ namespace ChurrOS.Api.Commands.Applications
                 if (enforceSizeQuota)
                 {
                     var lockKey = $"churros_tenant:{_tenantResolver.AccountId}:env:{app.EnvironmentId}:resource_lock";
-                    envLock = await _lockService.AcquireAsync(lockKey, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5), cancellationToken)
+                    envLock = await _lockService.AcquireAsync(lockKey, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(5), cancellationToken)
                         ?? throw new InvalidOperationException("Environment is busy, please retry.");
                 }
             }
@@ -91,53 +91,53 @@ namespace ChurrOS.Api.Commands.Applications
             long[]? updatedMembers = null;
             try
             {
-            foreach (var entry in request.Body.EnumerateObject())
-            {
-                switch (entry.Name)
+                foreach (var entry in request.Body.EnumerateObject())
                 {
-                    case "variables":
-                        app.Variables = entry.Value.Deserialize<ApplicationEnvironmentVariable[]>(JsonSettings.Value)!;
-                        break;
-                    case "size":
-                        {
-                            var newSize = entry.Value.Deserialize<SizeRequestItem>(JsonSettings.Value)!;
-                            if (enforceSizeQuota)
+                    switch (entry.Name)
+                    {
+                        case "variables":
+                            app.Variables = entry.Value.Deserialize<ApplicationEnvironmentVariable[]>(JsonSettings.Value)!;
+                            break;
+                        case "size":
                             {
-                                await _mediator.Send(new EnsureEnvironmentRunningQuota(app.EnvironmentId, app.Id, newSize, EnsureRunningQuotaMode.Update), cancellationToken);
+                                var newSize = entry.Value.Deserialize<SizeRequestItem>(JsonSettings.Value)!;
+                                if (enforceSizeQuota)
+                                {
+                                    await _mediator.Send(new EnsureEnvironmentRunningQuota(app.EnvironmentId, app.Id, newSize, EnsureRunningQuotaMode.Update), cancellationToken);
+                                }
+                                app.Size = newSize;
+                                break;
                             }
-                            app.Size = newSize;
+                        case "parameters":
+                            app.Parameters = entry.Value.Deserialize<IDictionary<string, string[]>>(JsonSettings.Value)!;
                             break;
-                        }
-                    case "parameters":
-                        app.Parameters = entry.Value.Deserialize<IDictionary<string, string[]>>(JsonSettings.Value)!;
-                        break;
-                    case "extensions":
-                        await UpdateExtensionsAsync(app, entry.Value.Deserialize<ApplicationExtensionItem[]>(JsonSettings.Value), cancellationToken);
-                        break;
-                    case "ports":
-                        await UpdatePortsAsync(app, entry.Value.Deserialize<PortDefinitionItem[]>(JsonSettings.Value));
-                        break;
-                    case "members":
-                        {
-                            if (!await _mediator.Send(new IsAdminOrHasAcl(app.AclId, Permission.Manage), cancellationToken))
-                                throw new UnauthorizedAccessException("You do not have permission to manage this application security members.");
+                        case "extensions":
+                            await UpdateExtensionsAsync(app, entry.Value.Deserialize<ApplicationExtensionItem[]>(JsonSettings.Value), cancellationToken);
+                            break;
+                        case "ports":
+                            await UpdatePortsAsync(app, entry.Value.Deserialize<PortDefinitionItem[]>(JsonSettings.Value));
+                            break;
+                        case "members":
+                            {
+                                if (!await _mediator.Send(new IsAdminOrHasAcl(app.AclId, Permission.Manage), cancellationToken))
+                                    throw new UnauthorizedAccessException("You do not have permission to manage this application security members.");
 
-                            var newMembers = entry.Value.Deserialize<MemberItem[]>(JsonSettings.Value)!;
-                            updatedMembers = await _mediator.UpdateAclAsync(membersToPurge, _context, _tenantResolver.AccountId, app.AclId, newMembers, cancellationToken);
+                                var newMembers = entry.Value.Deserialize<MemberItem[]>(JsonSettings.Value)!;
+                                updatedMembers = await _mediator.UpdateAclAsync(membersToPurge, _context, _tenantResolver.AccountId, app.AclId, newMembers, cancellationToken);
+                                break;
+                            }
+                        case "metadata":
+                            app.Metadata = entry.Value.Deserialize<JsonElement>(JsonSettings.Value)!;
                             break;
-                        }
-                    case "metadata":
-                        app.Metadata = entry.Value.Deserialize<JsonElement>(JsonSettings.Value)!;
-                        break;
-                    default:
-                        throw new ArgumentException($"Cannot update member '{entry.Name}' for this application.");
+                        default:
+                            throw new ArgumentException($"Cannot update member '{entry.Name}' for this application.");
+                    }
                 }
-            }
 
-            app.ModifiedAt = DateTimeOffset.Now;
-            app.ModifiedById = _context.IdentityId;
+                app.ModifiedAt = DateTimeOffset.Now;
+                app.ModifiedById = _context.IdentityId;
 
-            await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync();
             }
             finally
             {

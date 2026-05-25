@@ -3,6 +3,10 @@ namespace ChurrOS.Api.Models.Dtos.Environment
     /// <summary>
     /// Real-time resource totals for the environment header bar.
     /// CPU is in cores, memory and storage in bytes, GPU in count.
+    /// Internal shape — consumed only by the in-repo UI. Changing field names
+    /// here requires updating <c>apps/ui/src/hooks/data/environments.tsx</c>
+    /// (and any downstream UI usage) in the same commit; there is no external
+    /// API contract to preserve.
     /// </summary>
     public class EnvironmentTotalsItem
     {

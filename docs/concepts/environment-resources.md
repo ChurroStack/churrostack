@@ -93,11 +93,17 @@ Two starts on the same environment could each pass the check before either's
   our own hold.
 - `StartApplicationHandler`, `DeployApplicationHandler`, and
   `UpdateApplicationHandler` acquire
-  `churros_tenant:{accountId}:env:{envId}:resource_lock` (30 s TTL, 5 s wait)
-  before calling `EnsureEnvironmentRunningQuota`.
+  `churros_tenant:{accountId}:env:{envId}:resource_lock` (120 s TTL, 5 s
+  wait) before calling `EnsureEnvironmentRunningQuota`. The TTL is sized to
+  comfortably exceed runner round-trip for typical K8s deploys; if you see
+  it expiring under load, prefer adding lock renewal in `RedisLockService`
+  over silently bumping it further.
   `UpdateApplicationHandler` and `DeployApplicationHandler` hold the lock
-  through `SaveChangesAsync` so the size change / new deployment row is
-  visible to any racing check.
+  through `SaveChangesAsync`. `DeployApplicationHandler` also flips the
+  row's `ExecutionStatus` to `Starting` (for both new and re-deploy paths)
+  when the deploy will add a running instance, so the saved state matches
+  what the racing check counts; `ScrapeDeploymentStateJob` then reconciles
+  to `Running` (or back to `Stopped` if the pod fails to schedule).
 
 ### What is *not* enforced
 

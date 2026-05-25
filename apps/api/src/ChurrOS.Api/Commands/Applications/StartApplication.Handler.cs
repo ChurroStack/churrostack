@@ -71,7 +71,7 @@ namespace ChurrOS.Api.Commands.Applications
             // Serialize the quota check + start against this environment so two concurrent
             // starts can't both pass the budget check before either's ExecutionStatus updates.
             var lockKey = $"churros_tenant:{_tenantResolver.AccountId}:env:{app.EnvironmentId}:resource_lock";
-            await using var handle = await _lockService.AcquireAsync(lockKey, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5), cancellationToken)
+            await using var handle = await _lockService.AcquireAsync(lockKey, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(5), cancellationToken)
                 ?? throw new InvalidOperationException("Environment is busy, please retry.");
 
             await _mediator.Send(new EnsureEnvironmentRunningQuota(app.EnvironmentId, app.Id, app.Size, EnsureRunningQuotaMode.Start), cancellationToken);

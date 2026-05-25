@@ -189,7 +189,7 @@ namespace ChurrOS.Api.Commands.Applications
             if (addsRunningInstance)
             {
                 var lockKey = $"churros_tenant:{_tenantResolver.AccountId}:env:{app.EnvironmentId}:resource_lock";
-                envLock = await _lockService.AcquireAsync(lockKey, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5), cancellationToken)
+                envLock = await _lockService.AcquireAsync(lockKey, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(5), cancellationToken)
                     ?? throw new InvalidOperationException("Environment is busy, please retry.");
                 await _mediator.Send(new EnsureEnvironmentRunningQuota(app.EnvironmentId, app.Id, app.Size, EnsureRunningQuotaMode.Start), cancellationToken);
             }
@@ -197,6 +197,18 @@ namespace ChurrOS.Api.Commands.Applications
             try
             {
                 var result = await client.DeployAsync(deployRequest, cancellationToken);
+
+                // When the deploy will add a running instance, persist ExecutionStatus = Starting
+                // before releasing the env lock so any concurrent Deploy/Start/Update that takes
+                // the lock immediately after counts this pod's contribution against the env budget.
+                // ScrapeDeploymentStateJob later reconciles to Running or back to Stopped based on
+                // actual replica state. Without this, the lock-through-SaveChanges pattern leaks:
+                // the row would be saved as Stopped and EnsureEnvironmentRunningQuota — which
+                // filters on Running/Starting — would miss it, allowing two concurrent Deploys to
+                // each pass a check that should have caught the second.
+                var newExecutionStatus = addsRunningInstance
+                    ? DeploymentExecutionStatus.Starting
+                    : (deployment?.ExecutionStatus ?? DeploymentExecutionStatus.Stopped);
 
                 if (deployment is null)
                 {
@@ -207,7 +219,7 @@ namespace ChurrOS.Api.Commands.Applications
                         name: deploymentName,
                         ownerId: app.Mode == Models.Dtos.Application.ApplicationMode.Workspace ? deploymentOwnerId : null,
                         provisionStatus: DeploymentProvisionStatus.Provisioning,
-                        executionStatus: DeploymentExecutionStatus.Stopped,
+                        executionStatus: newExecutionStatus,
                         deploymentStatus: null,
                         deployedAt: now,
                         tags: Array.Empty<string>(),
@@ -221,6 +233,7 @@ namespace ChurrOS.Api.Commands.Applications
                 else
                 {
                     deployment.ProvisionStatus = DeploymentProvisionStatus.Provisioning;
+                    deployment.ExecutionStatus = newExecutionStatus;
                     deployment.DeploymentHash = result.Hash;
                     deployment.DeployedAt = now;
                     deployment.ModifiedAt = now;
