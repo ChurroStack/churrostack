@@ -751,9 +751,54 @@ namespace ChurrOS.Api
             // Database migration & seeding
             using var scope = app.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ChurrosDbContext>();
-            context.Database.Migrate();
-            await context.ApplyHypertablesAsync();
-            await context.ApplyQuartzTables();
+
+            // Some data migrations (e.g. RetypeCpuGpuMetricsAsGauge) bulk-delete from
+            // cs.metric_value, a Timescale hypertable that can grow large. Allow up
+            // to 1h for the boot-time migration phase; runtime contexts keep the
+            // default timeout because they get fresh DbContext instances from DI.
+            var previousCommandTimeout = context.Database.GetCommandTimeout();
+            context.Database.SetCommandTimeout(TimeSpan.FromHours(1));
+            try
+            {
+                var pending = context.Database.GetPendingMigrations().ToArray();
+                app.Logger.LogInformation(
+                    "[boot] Starting EF Core migration (pending={PendingCount}, commandTimeout={CommandTimeoutSeconds}s){PendingList}",
+                    pending.Length,
+                    (int)TimeSpan.FromHours(1).TotalSeconds,
+                    pending.Length > 0 ? $": {string.Join(", ", pending)}" : "");
+
+                var migrateSw = System.Diagnostics.Stopwatch.StartNew();
+                context.Database.Migrate();
+                migrateSw.Stop();
+                app.Logger.LogInformation(
+                    "[boot] EF Core migration completed in {ElapsedMs} ms",
+                    migrateSw.ElapsedMilliseconds);
+
+                app.Logger.LogInformation("[boot] Applying TimescaleDB hypertables");
+                var hyperSw = System.Diagnostics.Stopwatch.StartNew();
+                await context.ApplyHypertablesAsync();
+                hyperSw.Stop();
+                app.Logger.LogInformation(
+                    "[boot] TimescaleDB hypertables applied in {ElapsedMs} ms",
+                    hyperSw.ElapsedMilliseconds);
+
+                app.Logger.LogInformation("[boot] Applying Quartz schema");
+                var quartzSw = System.Diagnostics.Stopwatch.StartNew();
+                await context.ApplyQuartzTables();
+                quartzSw.Stop();
+                app.Logger.LogInformation(
+                    "[boot] Quartz schema applied in {ElapsedMs} ms",
+                    quartzSw.ElapsedMilliseconds);
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogError(ex, "[boot] Database migration phase failed");
+                throw;
+            }
+            finally
+            {
+                context.Database.SetCommandTimeout(previousCommandTimeout);
+            }
 
             var accountsRepo = context.Set<Account>();
             if (!accountsRepo.Any() && bool.TryParse(app.Configuration["CreateAccount"], out var createAccount) && createAccount)
