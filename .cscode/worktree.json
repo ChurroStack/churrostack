@@ -1,0 +1,11 @@
+{
+  "setup-worktree": "for f in apps/churrun-kubernetes/src/appsettings.Development.json apps/api/src/ChurrOS.AppHost/appsettings.Development.json; do [ -f \"$ROOT_WORKTREE_PATH/$f\" ] && cp \"$ROOT_WORKTREE_PATH/$f\" \"$f\"; done; true",
+  "scripts": [
+    { "name": "install", "command": "pnpm install" },
+    { "name": "dev", "command": "pnpm exec nx run-many -t dev,serve --projects=ui,api,churrun-kubernetes --parallel=3" },
+    { "name": "build", "command": "pnpm run build" },
+    { "name": "test", "command": "pnpm run test" },
+    { "name": "lint", "command": "pnpm run lint" },
+    { "name": "graph", "command": "pnpm run graph" }
+  ]
+}
