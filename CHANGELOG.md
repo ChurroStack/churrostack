@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.4](https://github.com/ChurroStack/churrostack/compare/v1.0.3...v1.0.4) (2026-05-25)
+
+
+### Bug Fixes
+
+* **monitoring:** bucket metrics in user TZ + neutral empty state ([#14](https://github.com/ChurroStack/churrostack/issues/14)) ([960c009](https://github.com/ChurroStack/churrostack/commit/960c009f3a879896d21b4e9d927107793f37aa49))
+
 ## [1.0.3](https://github.com/ChurroStack/churrostack/compare/v1.0.2...v1.0.3) (2026-05-25)
 
 
