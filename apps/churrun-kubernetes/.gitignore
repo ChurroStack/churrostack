@@ -1,0 +1,5 @@
+# Local SQLite database (created at runtime by `dotnet ef database update`
+# and `dotnet run`). The schema is rebuilt from EF Core migrations.
+src/churrun.db
+src/churrun.db-shm
+src/churrun.db-wal

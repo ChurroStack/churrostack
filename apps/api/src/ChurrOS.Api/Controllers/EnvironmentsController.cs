@@ -1,5 +1,7 @@
-﻿using ChurrOS.Api.Commands.Environment;
+﻿using ChurrOS.Api.Commands.Applications;
+using ChurrOS.Api.Commands.Environment;
 using ChurrOS.Api.Models.Dtos;
+using ChurrOS.Api.Models.Dtos.Application;
 using ChurrOS.Api.Models.Dtos.Environment;
 using DispatchR;
 using Microsoft.AspNetCore.Authorization;
@@ -97,6 +99,29 @@ namespace ChurrOS.Api.Controllers
         {
             await _mediator.Send(new ConnectEnvironment(name), cancellationToken);
             return Ok();
+        }
+
+        [HttpGet("{name}/usage")]
+        [Produces(MediaTypeNames.Application.Json)]
+        [ProducesResponseType(typeof(IList<EnvironmentUsageItem>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetEnvironmentUsage(string name, CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(new GetEnvironmentUsage(name), cancellationToken);
+            return Ok(result);
+        }
+
+        [HttpPost("{name}/analyze-usage")]
+        [Consumes(MediaTypeNames.Application.Json)]
+        [Produces(MediaTypeNames.Application.Json)]
+        [ProducesResponseType(typeof(AnalyzeUsageResultItem), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> AnalyzeEnvironmentUsage(string name, CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(new AnalyzeApplicationUsage(environmentName: name), cancellationToken);
+            return Ok(result);
         }
     }
 }

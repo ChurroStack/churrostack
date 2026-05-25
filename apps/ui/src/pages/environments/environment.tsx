@@ -10,8 +10,10 @@ import {
   useRotateEnvironmentKeys,
   useGetEnvironment,
   useEnvironmentTest,
-  useDeleteEnvironment
+  useDeleteEnvironment,
+  useAnalyzeEnvironmentUsage
 } from '@/hooks/data/environments';
+import { useMyPermission } from '@/hooks/data/identities';
 import {
   AlertCircle,
   AppWindow,
@@ -19,6 +21,7 @@ import {
   CircleAlert,
   Cog,
   FileDown,
+  Gauge,
   HardDriveUpload,
   KeyRound,
   Plus,
@@ -46,7 +49,9 @@ import { useNotifications } from '@/services/notification-service';
 import EnvironmentContextMenu from './menus/environment-menu';
 import { useEnvironmentService } from '@/services/environment-services';
 import EnvironmentsApplicationsPanel from './panels/applications-panel';
+import EnvironmentUsagePanel from './panels/usage-panel';
 import AccessPanel from './panels/members-panel';
+import { toast } from 'sonner';
 
 const formSchema = z.object({});
 
@@ -69,10 +74,13 @@ const Environment = () => {
     data: rotatedEnvironmentKeysData,
     reset: resetRotateEnvironmentKeys
   } = useRotateEnvironmentKeys(environment?.name ?? data?.name);
-  const [defaultView, setDefaultView] = useState<'applications' | 'setup'>('applications');
+  const [defaultView, setDefaultView] = useState<'applications' | 'setup' | 'usage' | 'security'>('applications');
+  const [usageReloadSignal, setUsageReloadSignal] = useState(0);
   const navigate = useNavigate();
   const { reload } = useEnvironmentService();
   const { error: deleteError, deleteAsync } = useDeleteEnvironment();
+  const { canManage } = useMyPermission(environment?.members);
+  const { postAsync: analyzeUsageAsync } = useAnalyzeEnvironmentUsage(environment?.name ?? id ?? '');
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: standardSchemaResolver(formSchema),
     defaultValues: {},
@@ -115,6 +123,17 @@ const Environment = () => {
     await deleteAsync(environmentName);
     navigate('/environments');
     reload();
+  };
+
+  const onAnalyzeUsage = async () => {
+    const result = await analyzeUsageAsync();
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(t('Usage analysis completed.'));
+    setUsageReloadSignal((signal) => signal + 1);
+    setDefaultView('usage');
   };
 
   const downloadValuesYaml = () => {
@@ -166,7 +185,12 @@ const Environment = () => {
             {isTesting ? <Spinner /> : environment?.health?.healthy ? <CheckCircle2Icon /> : <CircleAlert />}{' '}
             {t('Connect & Sync')}
           </Button>
-          <EnvironmentContextMenu onDeleteEnvironment={onDeleteEnvironment} name={environment?.name ?? ''} />
+          <EnvironmentContextMenu
+            onDeleteEnvironment={onDeleteEnvironment}
+            onAnalyzeUsage={onAnalyzeUsage}
+            canManage={canManage}
+            name={environment?.name ?? ''}
+          />
         </div>
       </div>
       <NewApplicationDialog
@@ -230,6 +254,13 @@ const Environment = () => {
                   <Cog /> {t('Setup')}
                 </div>
               </TabsTrigger>
+              {canManage && (
+                <TabsTrigger value="usage">
+                  <div className="flex flex-row items-center gap-2 px-2">
+                    <Gauge /> {t('Usage')}
+                  </div>
+                </TabsTrigger>
+              )}
               <TabsTrigger value="security">
                 <div className="flex flex-row items-center gap-2 px-2">
                   <UserLock /> {t('Manage Access')}
@@ -269,6 +300,13 @@ const Environment = () => {
           <TabsContent value="applications" className="flex flex-col min-h-0 w-full h-full">
             {environment?.name && <EnvironmentsApplicationsPanel environmentName={environment.name} />}
           </TabsContent>
+          {canManage && (
+            <TabsContent value="usage" className="flex flex-col min-h-0 w-full h-full">
+              {environment?.name && (
+                <EnvironmentUsagePanel environmentName={environment.name} reloadSignal={usageReloadSignal} />
+              )}
+            </TabsContent>
+          )}
           <TabsContent value="setup" className="flex flex-col min-h-0 w-full h-full">
             <Card className="w-full max-w-full">
               <CardHeader>

@@ -471,3 +471,58 @@ export function useCreateApplicationDeployment(appName: string) {
     reset
   };
 }
+
+export type SizeRecommendationDirection =
+  | 'downsize'
+  | 'upsize'
+  | 'resize'
+  | 'optimal'
+  | 'insufficient_data'
+  | 'not_analyzed';
+
+export interface ApplicationSizeRecommendation {
+  applicationName: string;
+  currentSize?: ApplicationSize;
+  recommendedSize?: ApplicationSize;
+  cpuAvg: number;
+  cpuMax: number;
+  cpuP95: number;
+  memoryAvg: number;
+  memoryMax: number;
+  memoryP95: number;
+  sampleCount: number;
+  windowDays: number;
+  computedAt: string;
+  hasRecommendation: boolean;
+  direction: SizeRecommendationDirection;
+}
+
+export interface AnalyzeUsageResult {
+  applicationsAnalyzed: number;
+  recommendationsCount: number;
+}
+
+export function useGetApplicationSizeRecommendation(
+  applicationName?: string
+): UseGetResult<ApplicationSizeRecommendation> {
+  // useGet must always run (rules of hooks); when applicationName is missing we
+  // point at a sentinel path and swap fetchAsync for a no-op so callers can't
+  // accidentally hit the wrong-shape `/api/applications` list endpoint.
+  const path = applicationName
+    ? `/api/applications/${applicationName.replace(/^\/+/, '')}/size-recommendation`
+    : `/api/applications/__unset__/size-recommendation`;
+  const { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset } =
+    useGet<ApplicationSizeRecommendation>(path);
+  const safeFetchAsync = applicationName
+    ? fetchAsync
+    : async () => ({ data: undefined, error: undefined });
+  return { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync: safeFetchAsync, reset };
+}
+
+export function useAnalyzeApplicationUsage(applicationName: string) {
+  const { isFetching, isSuccess, statusCode, isError, error, data, postAsync, reset } = usePost<AnalyzeUsageResult>(
+    `/api/applications/${applicationName}/analyze-usage`,
+    'application/json'
+  );
+  return { isFetching, isSuccess, statusCode, isError, error, data, postAsync, reset };
+}

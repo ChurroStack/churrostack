@@ -7,17 +7,21 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useTranslation } from 'react-i18next';
-import { CloudUpload, EllipsisVertical, Trash2 } from 'lucide-react';
+import { CloudUpload, EllipsisVertical, Gauge, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 const ApplicationContextMenu = ({
   name,
+  canManage,
   onDeleteApplication,
-  onDeployApplication
+  onDeployApplication,
+  onAnalyzeUsage
 }: {
   name: string;
+  canManage?: boolean;
   onDeleteApplication?: (name: string) => void;
   onDeployApplication?: (name: string) => void;
+  onAnalyzeUsage?: (name: string) => void;
 }) => {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -30,6 +34,16 @@ const ApplicationContextMenu = ({
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="start">
+        {canManage && onAnalyzeUsage && (
+          <DropdownMenuItem
+            onClick={() => {
+              onAnalyzeUsage(name);
+              setOpen(false);
+            }}>
+            <Gauge /> {t('Analyze application usage...')}
+          </DropdownMenuItem>
+        )}
+        {canManage && onAnalyzeUsage && (onDeployApplication || onDeleteApplication) && <DropdownMenuSeparator />}
         {onDeployApplication && (
           <ConfirmDialog
             title={t('Deploy application')}

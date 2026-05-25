@@ -1,5 +1,6 @@
 import { useDelete, useGet, usePatch, usePost, type QueryResult, type UseGetResult } from './core';
 import type { MemberSummary } from './identities';
+import type { AnalyzeUsageResult, ApplicationSize, SizeRecommendationDirection } from './applications';
 
 export interface EnvironmentSummary {
   name: string;
@@ -182,6 +183,36 @@ export function useRotateEnvironmentKeys(environmentName?: string) {
     postAsync: jsonPostAsync,
     reset
   };
+}
+
+export interface EnvironmentUsageItem {
+  applicationName: string;
+  currentSize?: ApplicationSize;
+  recommendedSize?: ApplicationSize;
+  cpuAvg: number;
+  cpuMax: number;
+  memoryAvg: number;
+  memoryMax: number;
+  sampleCount: number;
+  windowDays: number;
+  computedAt?: string;
+  hasRecommendation: boolean;
+  direction: SizeRecommendationDirection;
+}
+
+export function useGetEnvironmentUsage(environmentName?: string): UseGetResult<EnvironmentUsageItem[]> {
+  const { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset } = useGet<EnvironmentUsageItem[]>(
+    environmentName ? `/api/environments/${environmentName.replace(/^\/+/, '')}/usage` : `/api/environments`
+  );
+  return { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset };
+}
+
+export function useAnalyzeEnvironmentUsage(environmentName: string) {
+  const { isFetching, isSuccess, statusCode, isError, error, data, postAsync, reset } = usePost<AnalyzeUsageResult>(
+    `/api/environments/${environmentName}/analyze-usage`,
+    'application/json'
+  );
+  return { isFetching, isSuccess, statusCode, isError, error, data, postAsync, reset };
 }
 
 export function useEnvironmentTest(environmentName?: string) {

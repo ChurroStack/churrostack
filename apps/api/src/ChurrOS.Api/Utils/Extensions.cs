@@ -197,6 +197,68 @@ namespace ChurrOS.Api.Utils
             return false;
         }
 
+        /// <summary>
+        /// Parses a Kubernetes-style memory quantity (e.g. "512Mi", "2Gi", "500M",
+        /// "1073741824") into a number of bytes.
+        /// </summary>
+        public static bool TryParseMemoryToBytes(this string memory, out double bytes)
+        {
+            bytes = 0;
+
+            if (string.IsNullOrWhiteSpace(memory))
+                return false;
+
+            memory = memory.Trim();
+
+            // Binary (power-of-1024) suffixes — checked before decimal ones so that
+            // "Mi" is not mistaken for the decimal "M".
+            (string Suffix, double Factor)[] binarySuffixes =
+            [
+                ("Ki", 1024d),
+                ("Mi", 1024d * 1024),
+                ("Gi", 1024d * 1024 * 1024),
+                ("Ti", 1024d * 1024 * 1024 * 1024),
+                ("Pi", 1024d * 1024 * 1024 * 1024 * 1024),
+            ];
+            foreach (var (suffix, factor) in binarySuffixes)
+            {
+                if (memory.EndsWith(suffix, StringComparison.Ordinal) &&
+                    double.TryParse(memory[..^suffix.Length], NumberStyles.Float, CultureInfo.InvariantCulture, out var binaryValue))
+                {
+                    bytes = binaryValue * factor;
+                    return true;
+                }
+            }
+
+            // Decimal (power-of-1000) suffixes.
+            (string Suffix, double Factor)[] decimalSuffixes =
+            [
+                ("k", 1000d),
+                ("M", 1000d * 1000),
+                ("G", 1000d * 1000 * 1000),
+                ("T", 1000d * 1000 * 1000 * 1000),
+                ("P", 1000d * 1000 * 1000 * 1000 * 1000),
+            ];
+            foreach (var (suffix, factor) in decimalSuffixes)
+            {
+                if (memory.EndsWith(suffix, StringComparison.Ordinal) &&
+                    double.TryParse(memory[..^suffix.Length], NumberStyles.Float, CultureInfo.InvariantCulture, out var decimalValue))
+                {
+                    bytes = decimalValue * factor;
+                    return true;
+                }
+            }
+
+            // Plain byte count.
+            if (double.TryParse(memory, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+            {
+                bytes = value;
+                return true;
+            }
+
+            return false;
+        }
+
         public static void MergeWith(this JsonObject target, JsonElement patch)
         {
             if (patch.ValueKind != JsonValueKind.Object)

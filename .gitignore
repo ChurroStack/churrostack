@@ -71,6 +71,9 @@ web_modules/
 .env
 .env.*
 !.env.example
+# `.env.development` is the committed dev template that CLAUDE.md tells
+# contributors to copy to `.env`; explicitly allow it (and only it) under apps/ui.
+!apps/ui/.env.development
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
