@@ -516,6 +516,13 @@ namespace ChurrOS.Api
                     .ForJob(analyzeUsageJobKey)
                     .WithIdentity("analyze-usage-trigger")
                     .WithCronSchedule("0 0 2 * * ?", x => x.InTimeZone(TimeZoneInfo.Utc)));
+
+                var autoStopJobKey = new JobKey("auto-stop-evaluator-job");
+                q.AddJob<AutoStopEvaluatorJob>(opts => opts.WithIdentity(autoStopJobKey).StoreDurably());
+                q.AddTrigger(opts => opts
+                    .ForJob(autoStopJobKey)
+                    .WithIdentity("auto-stop-evaluator-trigger")
+                    .WithCronSchedule("0 0/5 * * * ?", x => x.InTimeZone(TimeZoneInfo.Utc)));
             });
 
             builder.Services.AddQuartzServer(options =>
@@ -543,6 +550,9 @@ namespace ChurrOS.Api
             builder.Services.AddSingleton<IAuthorizationHandler, ApplicationMemberAccessHandler>();
             builder.Services.AddSingleton<IProxyConfigProvider>(sp => sp.GetRequiredService<ProxyConfigurationProvider>());
             builder.Services.AddSingleton<MetricsAggregatorService, MetricsAggregatorService>();
+            builder.Services.AddSingleton<ChurrOS.Api.Services.AutoStart.AutoStartCache>();
+            builder.Services.AddSingleton<ChurrOS.Api.Services.AutoStart.AutoStartCoordinator>();
+            builder.Services.AddSingleton<ChurrOS.Api.Services.AutoStart.AutoStartTransform>();
             builder.Services.AddHostedService<TracesProcessorJob>();
             builder.Services.AddReverseProxy();
             // Interface that collects general metrics about the proxy forwarder
@@ -594,7 +604,7 @@ namespace ChurrOS.Api
             app.UseWebSocketsTelemetry();
             app.MapReverseProxy(pipeline =>
             {
-                pipeline.Use((context, next) =>
+                pipeline.Use(async (context, next) =>
                 {
                     if (context.User.Identity?.IsAuthenticated == true)
                     {
@@ -609,11 +619,12 @@ namespace ChurrOS.Api
 
                     if (string.IsNullOrEmpty(clusterId))
                     {
-                        return next();
+                        await next();
+                        return;
                     }
 
                     var cacheService = context.RequestServices.GetService<ICacheService>()!;
-                    var envInfo = cacheService.GetOrAddAsync($"env:{clusterId}:info", async (ctx) =>
+                    var envInfo = await cacheService.GetOrAddAsync($"env:{clusterId}:info", async (ctx) =>
                     {
                         ctx.SetAbsoluteExpiration(TimeSpan.FromMinutes(1));
                         using var conn = new NpgsqlConnection(databaseConnectionString);
@@ -653,7 +664,7 @@ namespace ChurrOS.Api
                             await conn.CloseAsync();
                         }
                         return default;
-                    }, CancellationToken.None).GetAwaiter().GetResult();
+                    }, context.RequestAborted);
 
                     var tenantResolver = context.RequestServices.GetService<ITenantResolver>()!;
                     tenantResolver.SetAccountId(envInfo!.AccountId);
@@ -664,16 +675,16 @@ namespace ChurrOS.Api
                     var quotaService = context.RequestServices.GetService<QuotaService>()!;
                     try
                     {
-                        quotaService.EnsureHasQuotaAsync(QuotaService.QuotaType.Network).GetAwaiter().GetResult();
+                        await quotaService.EnsureHasQuotaAsync(QuotaService.QuotaType.Network);
                     }
                     catch (Exception ex)
                     {
                         context.Response.StatusCode = 429;
-                        context.Response.WriteAsJsonAsync(new
+                        await context.Response.WriteAsJsonAsync(new
                         {
                             error = ex.Message
                         });
-                        return Task.CompletedTask;
+                        return;
                     }
 
                     if (context.Request.Path.StartsWithSegments($"/share"))
@@ -681,7 +692,14 @@ namespace ChurrOS.Api
                         var parts = context.Request.Path.ToString().Split('/', StringSplitOptions.RemoveEmptyEntries);
                         var appName = parts[1];
 
-                        var (appMode, destination) = cacheService.GetOrAddAsync<RoutingInfo>($"app:{appName}:user:{context.User?.Identity?.Name}:routing_info", async (ctx) =>
+                        var autoStartTransform = context.RequestServices.GetRequiredService<ChurrOS.Api.Services.AutoStart.AutoStartTransform>();
+                        var shouldForward = await autoStartTransform.HandleShareRequestAsync(context, appName, envInfo.AccountId);
+                        if (!shouldForward)
+                        {
+                            return;
+                        }
+
+                        var (appMode, destination) = await cacheService.GetOrAddAsync<RoutingInfo>($"app:{appName}:user:{context.User?.Identity?.Name}:routing_info", async (ctx) =>
                         {
                             ctx.SetAbsoluteExpiration(TimeSpan.FromMinutes(5));
 
@@ -701,18 +719,18 @@ namespace ChurrOS.Api
                             }
 
                             return new RoutingInfo(ApplicationMode.Application, null);
-                        }, CancellationToken.None).GetAwaiter().GetResult();
+                        }, context.RequestAborted);
 
                         if (appMode == ApplicationMode.Workspace)
                         {
                             if (string.IsNullOrEmpty(destination))
                             {
                                 context.Response.StatusCode = 404;
-                                context.Response.WriteAsJsonAsync(new
+                                await context.Response.WriteAsJsonAsync(new
                                 {
                                     error = "Application deployment not found for the current user."
                                 });
-                                return Task.CompletedTask;
+                                return;
                             }
                             context.Request.Headers.TryAdd("X-Destination-Id", destination);
                         }
@@ -726,7 +744,7 @@ namespace ChurrOS.Api
                     context.Request.Headers.TryAdd("X-Signature", signature);
                     context.Request.Headers.TryAdd("X-Port", envInfo.Port.ToString());
 
-                    return next();
+                    await next();
                 });
             });
 

@@ -1,6 +1,7 @@
 ﻿using ChurrOS.Api.Data;
 using ChurrOS.Api.Domain;
 using ChurrOS.Api.Services;
+using ChurrOS.Api.Services.AutoStart;
 using ChurrOS.Api.Services.Security;
 using DispatchR;
 using LazyCache;
@@ -20,8 +21,9 @@ namespace ChurrOS.Api.Jobs
         private readonly ILogger<ScrapeDeploymentStateJob> _logger;
         private readonly ClientNotificationService _clientNotificationService;
         private readonly ICacheService _cacheService;
+        private readonly AutoStartCache _autoStartCache;
 
-        public ScrapeDeploymentStateJob(IServiceScopeFactory serviceScopeFactory, RunnerService runnerService, IAppCache appCache, ILogger<ScrapeDeploymentStateJob> logger, ClientNotificationService clientNotificationService, ICacheService cacheService)
+        public ScrapeDeploymentStateJob(IServiceScopeFactory serviceScopeFactory, RunnerService runnerService, IAppCache appCache, ILogger<ScrapeDeploymentStateJob> logger, ClientNotificationService clientNotificationService, ICacheService cacheService, AutoStartCache autoStartCache)
         {
             _serviceScopeFactory = serviceScopeFactory;
             _runnerService = runnerService;
@@ -29,6 +31,7 @@ namespace ChurrOS.Api.Jobs
             _logger = logger;
             _clientNotificationService = clientNotificationService;
             _cacheService = cacheService;
+            _autoStartCache = autoStartCache;
         }
 
         public async Task Execute(IJobExecutionContext context)
@@ -87,6 +90,7 @@ namespace ChurrOS.Api.Jobs
 
                     if (deployment is not null)
                     {
+                        var previousExecutionStatus = deployment.ExecutionStatus;
                         if (deploymentState.Replicas > 0)
                         {
                             deployment.ProvisionStatus = Models.Dtos.Deployment.DeploymentProvisionStatus.Provisioned;
@@ -162,6 +166,28 @@ namespace ChurrOS.Api.Jobs
                             {
                                 if (!isConnOpen)
                                     await conn.CloseAsync();
+                            }
+                        }
+
+                        // Refresh the auto-start `running` flag on EVERY observation that
+                        // reports Running, not only on transitions. Otherwise a stably-Running
+                        // app drops the flag once `RunningTtl` elapses and subsequent share
+                        // requests get stuck in the hold path until they 504.
+                        if (appId.HasValue)
+                        {
+                            var newExecutionStatus = deployment.ExecutionStatus;
+                            if (newExecutionStatus == Models.Dtos.Deployment.DeploymentExecutionStatus.Running)
+                            {
+                                await _autoStartCache.SetRunningAsync(appId.Value);
+                            }
+                            else if (previousExecutionStatus == Models.Dtos.Deployment.DeploymentExecutionStatus.Running)
+                            {
+                                await _autoStartCache.ClearRunningAsync(appId.Value);
+                            }
+
+                            if (changedApp)
+                            {
+                                await _autoStartCache.InvalidateRouteAsync(appName);
                             }
                         }
 

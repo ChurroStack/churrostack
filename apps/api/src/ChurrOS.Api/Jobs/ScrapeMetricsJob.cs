@@ -2,6 +2,7 @@
 using ChurrOS.Api.Models.Dtos;
 using ChurrOS.Api.Models.Dtos.Metrics;
 using ChurrOS.Api.Services;
+using ChurrOS.Api.Services.AutoStart;
 using ChurrOS.Api.Services.Security;
 using DispatchR;
 using LazyCache;
@@ -23,8 +24,9 @@ namespace ChurrOS.Api.Jobs
         private readonly ICacheService _cacheService;
         private readonly MetricsAggregatorService _metricsAggregatorService;
         private readonly ILogger<ScrapeMetricsJob> _logger;
+        private readonly AutoStartCache _autoStartCache;
 
-        public ScrapeMetricsJob(IServiceScopeFactory serviceScopeFactory, RunnerService runnerService, IAppCache appCache, ICacheService cacheService, MetricsAggregatorService metricsAggregatorService, ILogger<ScrapeMetricsJob> logger)
+        public ScrapeMetricsJob(IServiceScopeFactory serviceScopeFactory, RunnerService runnerService, IAppCache appCache, ICacheService cacheService, MetricsAggregatorService metricsAggregatorService, ILogger<ScrapeMetricsJob> logger, AutoStartCache autoStartCache)
         {
             _serviceScopeFactory = serviceScopeFactory;
             _runnerService = runnerService;
@@ -32,6 +34,7 @@ namespace ChurrOS.Api.Jobs
             _cacheService = cacheService;
             _metricsAggregatorService = metricsAggregatorService;
             _logger = logger;
+            _autoStartCache = autoStartCache;
         }
 
         public async Task Execute(IJobExecutionContext context)
@@ -136,15 +139,32 @@ namespace ChurrOS.Api.Jobs
                     if (string.IsNullOrWhiteSpace(appName))
                         continue;
 
+                    var totalCpu = appUsage.Sum(o => o.CpuUsage) ?? 0;
                     var usageKey = $"churros_tenant:{accountId}:app:{appUsage.Key}:resource_usage";
                     await db.HashSetAsync(usageKey,
                     [
-                        new HashEntry("cpu", appUsage.Sum(o=>o.CpuUsage) ?? 0),
+                        new HashEntry("cpu", totalCpu),
                         new HashEntry("gpu", appUsage.Sum(o=>o.GpuUsage) ?? 0),
                         new HashEntry("memory", appUsage.Sum(o=>o.MemoryUsage) ?? 0),
                         new HashEntry("storage", appUsage.Sum(o=>o.StorageUsage) ?? 0),
                     ]);
                     db.KeyExpire(usageKey, TimeSpan.FromHours(1));
+
+                    if (totalCpu >= AutoStartConstants.CpuActivityCores)
+                    {
+                        try
+                        {
+                            var route = await _autoStartCache.GetRouteAsync(appName, dbContext, cancellationToken);
+                            if (route?.AutoStopEnabled == true)
+                            {
+                                await _autoStartCache.WriteLastActivityAsync(appUsage.Key, DateTimeOffset.UtcNow);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogDebug(ex, "[AutoStart] cpu-activity write skipped app={App}", appName);
+                        }
+                    }
 
                     foreach (var usage in appUsage)
                     {

@@ -1,6 +1,8 @@
 ﻿using ChurrOS.Api.Data;
 using ChurrOS.Api.Models.Dtos.Share;
 using ChurrOS.Api.Models.Dtos.Template.Definition;
+using ChurrOS.Api.Services;
+using ChurrOS.Api.Services.AutoStart;
 using ChurrOS.Api.Utils;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Primitives;
@@ -22,10 +24,12 @@ namespace ChurrOS.Api.Services.Share
         private CancellationTokenSource _cts = new();
 
         private readonly IServiceScopeFactory _serviceScopeFactory;
+        private readonly ICacheService _cacheService;
 
-        public ProxyConfigurationProvider(IServiceScopeFactory serviceScopeFactory)
+        public ProxyConfigurationProvider(IServiceScopeFactory serviceScopeFactory, ICacheService cacheService)
         {
             _serviceScopeFactory = serviceScopeFactory;
+            _cacheService = cacheService;
         }
 
         public IProxyConfig GetConfig()
@@ -140,6 +144,7 @@ namespace ChurrOS.Api.Services.Share
                 _routes.RemoveAll(r => r.RouteId.StartsWith($"{deploymentName}:"));
                 Reload();
             }
+            _ = _cacheService.InvalidateAsync(AutoStartConstants.RouteCacheKey(deploymentName));
         }
 
         public void RemoveEnvironment(string environmentName)
@@ -154,6 +159,7 @@ namespace ChurrOS.Api.Services.Share
 
         public void AddApplication(string appName, PortDefinition[] deploymentPorts, string environmentName)
         {
+            _ = _cacheService.InvalidateAsync(AutoStartConstants.RouteCacheKey(appName));
             lock (_lock)
             {
                 _routes.RemoveAll(r => r.RouteId.StartsWith($"{appName}:"));

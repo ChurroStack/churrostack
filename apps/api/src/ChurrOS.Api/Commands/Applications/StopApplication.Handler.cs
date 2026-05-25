@@ -2,6 +2,7 @@
 using ChurrOS.Api.Data;
 using ChurrOS.Api.Models.Dtos.Identity;
 using ChurrOS.Api.Services;
+using ChurrOS.Api.Services.AutoStart;
 using ChurrOS.Api.Services.Security;
 using ChurrOS.Api.Utils.Exceptions;
 using DispatchR;
@@ -15,15 +16,18 @@ namespace ChurrOS.Api.Commands.Applications
         private readonly IMediator _mediator;
         private readonly ChurrosDbContext _context;
         private readonly RunnerService _runnerService;
+        private readonly AutoStartCache _autoStartCache;
 
         public StopApplicationHandler(
             IMediator mediator,
             ChurrosDbContext context,
-            RunnerService runnerService)
+            RunnerService runnerService,
+            AutoStartCache autoStartCache)
         {
             _mediator = mediator;
             _context = context;
             _runnerService = runnerService;
+            _autoStartCache = autoStartCache;
         }
 
         public async Task Handle(StopApplication request, CancellationToken cancellationToken)
@@ -46,12 +50,15 @@ namespace ChurrOS.Api.Commands.Applications
                 throw new NotFoundException($"Application with name '{request.Name}' is not deployed yet.");
             }
 
-            var isAdmin = await _mediator.Send(new HasRole(IdentityRole.Administrator, _context.IdentityId), cancellationToken);
-            if (!isAdmin)
+            if (!request.BypassAcl)
             {
-                var identityAcls = await _mediator.Send(new GetIdentityAcls(_context.IdentityId, app.Mode == Models.Dtos.Application.ApplicationMode.Workspace ? Permission.Read : Permission.Write), cancellationToken);
-                if (!identityAcls.ContainsKey(app.AclId) && !identityAcls.ContainsKey(app.Environment!.AclId))
-                    throw new UnauthorizedAccessException("You do not have permission to stop this application.");
+                var isAdmin = await _mediator.Send(new HasRole(IdentityRole.Administrator, _context.IdentityId), cancellationToken);
+                if (!isAdmin)
+                {
+                    var identityAcls = await _mediator.Send(new GetIdentityAcls(_context.IdentityId, app.Mode == Models.Dtos.Application.ApplicationMode.Workspace ? Permission.Read : Permission.Write), cancellationToken);
+                    if (!identityAcls.ContainsKey(app.AclId) && !identityAcls.ContainsKey(app.Environment!.AclId))
+                        throw new UnauthorizedAccessException("You do not have permission to stop this application.");
+                }
             }
 
             var parts = app.Environment!.EncryptionKey.Split(':');
@@ -71,6 +78,19 @@ namespace ChurrOS.Api.Commands.Applications
             {
                 var deploymentName = app.Mode == Models.Dtos.Application.ApplicationMode.Workspace ? $"{app.Name}-{_context.IdentityId}" : app.Name;
                 await client.StopAsync(deploymentName, cancellationToken);
+            }
+
+            await _autoStartCache.InvalidateRouteAsync(app.Name);
+            await _autoStartCache.ClearRunningAsync(app.Id);
+
+            // Cooldown only makes sense for system-initiated stops (auto-stop), where we
+            // want to keep the app from being re-started by an immediate request. Pairing
+            // it with BypassAcl here means a hypothetical future caller can't accidentally
+            // impose a cooldown on a manual stop and silently break the "manual start
+            // always works" invariant.
+            if (request.SetCooldown && request.BypassAcl)
+            {
+                await _autoStartCache.SetCooldownAsync(app.Id);
             }
         }
     }

@@ -14,6 +14,7 @@ import { useGetTemplate, type TemplateParameterDefinition } from '@/hooks/data/t
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ExtensionHandler = ({
   app,
@@ -145,12 +146,18 @@ const SettingsPanel = ({
   const [description, setDescription] = useState(app?.metadata?.description ?? '');
   const [parameters, setParameters] = useState<{ [name: string]: string[] }>(app?.parameters ?? {});
   const [extensions, setExtensions] = useState<ApplicationExtensionItem[]>(app?.extensions ?? []);
+  const [autoStartEnabled, setAutoStartEnabled] = useState<boolean>(!!app?.metadata?.autoStart?.enabled);
+  const [autoStopEnabled, setAutoStopEnabled] = useState<boolean>(!!app?.metadata?.autoStop?.enabled);
+  const [autoStopIdleMinutes, setAutoStopIdleMinutes] = useState<number>(app?.metadata?.autoStop?.idleMinutes ?? 60);
 
   useEffect(() => {
     setSize(app?.size ?? undefined);
     setDescription(app?.metadata?.description ?? '');
     setParameters(app?.parameters ?? {});
     setExtensions(app?.extensions ?? []);
+    setAutoStartEnabled(!!app?.metadata?.autoStart?.enabled);
+    setAutoStopEnabled(!!app?.metadata?.autoStop?.enabled);
+    setAutoStopIdleMinutes(app?.metadata?.autoStop?.idleMinutes ?? 60);
   }, [app]);
 
   const setExtension = (extension: ApplicationExtensionItem) => {
@@ -198,7 +205,9 @@ const SettingsPanel = ({
                 parameters,
                 extensions,
                 metadata: {
-                  description
+                  description,
+                  autoStart: { enabled: autoStartEnabled },
+                  autoStop: { enabled: autoStopEnabled, idleMinutes: autoStopIdleMinutes }
                 }
               }).then((response) => {
                 if (!response.error) {
@@ -220,6 +229,55 @@ const SettingsPanel = ({
         </div>
       )}
       <div className="flex flex-col gap-4 p-2 h-full overflow-auto">
+        <div className="flex flex-row gap-2">
+          <Card className="shadow-none p-4 gap-2 flex-1">
+            <CardHeader className="px-0">
+              <div className="flex flex-row items-center gap-4 w-full">
+                <Switch checked={autoStartEnabled} onCheckedChange={setAutoStartEnabled} />
+                <div className="flex flex-col">
+                  <span className="uppercase text-sm font-semibold">{t('Auto-start')}</span>
+                  <FieldDescription>
+                    {t('Start the application automatically when a request arrives.')}
+                  </FieldDescription>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+          <Card className="shadow-none p-4 gap-2 flex-1">
+            <CardHeader className="px-0">
+              <div className="flex flex-row items-center gap-4 w-full">
+                <Switch checked={autoStopEnabled} onCheckedChange={setAutoStopEnabled} />
+                <div className="flex flex-col flex-1">
+                  <span className="uppercase text-sm font-semibold">{t('Auto-stop')}</span>
+                  <FieldDescription>
+                    {t('Stop the application after a period without requests or CPU activity.')}
+                  </FieldDescription>
+                </div>
+              </div>
+            </CardHeader>
+            {autoStopEnabled && (
+              <CardContent className="p-0">
+                <Field>
+                  <FieldLabel>{t('Stop when idle for')}</FieldLabel>
+                  <Select
+                    value={String(autoStopIdleMinutes)}
+                    onValueChange={(v) => setAutoStopIdleMinutes(Number(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">{t('30 minutes')}</SelectItem>
+                      <SelectItem value="60">{t('1 hour')}</SelectItem>
+                      <SelectItem value="120">{t('2 hours')}</SelectItem>
+                      <SelectItem value="240">{t('4 hours')}</SelectItem>
+                      <SelectItem value="480">{t('8 hours')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </CardContent>
+            )}
+          </Card>
+        </div>
         <FieldGroup className="flex flex-row gap-2">
           <Field>
             <FieldLabel>{t('Application description')}</FieldLabel>

@@ -7,6 +7,10 @@ namespace ChurrOS.Api.Commands.Applications
         public string Name { get; private set; }
         public string? DeploymentName { get; private set; }
 
+        public bool BypassAcl { get; init; }
+
+        public bool SetCooldown { get; init; }
+
         public StopApplication(string name, string? deploymentName)
         {
             Name = name;
