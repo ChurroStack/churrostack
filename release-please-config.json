@@ -3,6 +3,7 @@
   "include-component-in-tag": false,
   "tag-separator": "-",
   "separate-pull-requests": false,
+  "pull-request-title-pattern": "chore: release ${branch}",
   "packages": {
     ".": {
       "release-type": "node",
