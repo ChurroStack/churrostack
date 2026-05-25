@@ -43,7 +43,7 @@ namespace ChurrOS.Api.Commands.Llm
                 { "metric", request.MetricName }
             };
 
-            return await _mediator.Send(new GetMetrics(filter, request.From, request.To), cancellationToken);
+            return await _mediator.Send(new GetMetrics(filter, request.From, request.To, request.Tz), cancellationToken);
         }
     }
 }

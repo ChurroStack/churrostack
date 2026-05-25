@@ -35,9 +35,9 @@ namespace ChurrOS.Api.Commands.Metrics
                 throw new NotFoundException($"Metric with name '{metricName}' was not found.");
             }
 
-            // Set the time range window
-            var from = request.From ?? DateTime.Today;
-            var to = request.To ?? DateTime.Today.AddDays(1);
+            // Set the time range window (UTC defaults so behavior is independent of the server's TZ).
+            var from = request.From ?? DateTime.UtcNow.Date;
+            var to = request.To ?? DateTime.UtcNow.Date.AddDays(1);
 
             if (from >= to)
             {

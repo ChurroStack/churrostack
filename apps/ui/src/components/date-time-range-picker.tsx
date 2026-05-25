@@ -90,11 +90,10 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
   const getPresetRange = React.useCallback((presetName: string): DateTimeRange => {
     const now = new Date();
     const today = startOfDay(now);
-    const endToday = endOfDay(now);
 
     switch (presetName) {
       case 'today':
-        return { from: today, to: endToday };
+        return { from: today, to: now };
       case 'lastHour':
         return { from: subHours(now, 1), to: now };
       case 'yesterday': {
@@ -102,15 +101,15 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
         return { from: yesterday, to: endOfDay(yesterday) };
       }
       case 'last7':
-        return { from: subDays(today, 6), to: endToday };
+        return { from: subDays(today, 6), to: now };
       case 'last14':
-        return { from: subDays(today, 13), to: endToday };
+        return { from: subDays(today, 13), to: now };
       case 'last30':
-        return { from: subDays(today, 29), to: endToday };
+        return { from: subDays(today, 29), to: now };
       case 'thisWeek':
         return {
           from: startOfWeek(today, { weekStartsOn: 0 }),
-          to: endToday
+          to: now
         };
       case 'lastWeek': {
         const lastWeekStart = startOfWeek(subDays(today, 7), {
@@ -125,7 +124,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
       case 'thisMonth':
         return {
           from: startOfMonth(today),
-          to: endToday
+          to: now
         };
       case 'lastMonth': {
         const lastMonth = subMonths(today, 1);
