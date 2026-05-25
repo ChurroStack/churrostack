@@ -9,13 +9,29 @@
       "!{projectRoot}/**/obj/**/*",
       "sharedGlobals"
     ],
-    "production": ["default"],
+    "production": [
+      "default"
+    ],
     "sharedGlobals": []
   },
   "targetDefaults": {
-    "build": { "dependsOn": ["^build"], "cache": true },
-    "test": { "cache": true },
-    "lint": { "cache": true },
-    "publish": { "dependsOn": ["build"] }
-  }
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": true
+    },
+    "test": {
+      "cache": true
+    },
+    "lint": {
+      "cache": true
+    },
+    "publish": {
+      "dependsOn": [
+        "build"
+      ]
+    }
+  },
+  "analytics": false
 }
