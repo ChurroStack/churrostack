@@ -1,4 +1,5 @@
-﻿using ChurrOS.Api.Commands.Identity;
+﻿using ChurrOS.Api.Commands.Environment;
+using ChurrOS.Api.Commands.Identity;
 using ChurrOS.Api.Data;
 using ChurrOS.Api.Models.Dtos.Identity;
 using ChurrOS.Api.Services;
@@ -16,17 +17,23 @@ namespace ChurrOS.Api.Commands.Applications
         private readonly ChurrosDbContext _context;
         private readonly RunnerService _runnerService;
         private readonly QuotaService _quotaService;
+        private readonly ILockService _lockService;
+        private readonly ITenantResolver _tenantResolver;
 
         public StartApplicationHandler(
             IMediator mediator,
             ChurrosDbContext context,
             RunnerService runnerService,
-            QuotaService quotaService)
+            QuotaService quotaService,
+            ILockService lockService,
+            ITenantResolver tenantResolver)
         {
             _mediator = mediator;
             _context = context;
             _runnerService = runnerService;
             _quotaService = quotaService;
+            _lockService = lockService;
+            _tenantResolver = tenantResolver;
         }
 
         public async Task Handle(StartApplication request, CancellationToken cancellationToken)
@@ -36,7 +43,7 @@ namespace ChurrOS.Api.Commands.Applications
             var app = await repo
                 .Include(o => o.Environment)
                 .Include(o => o.Deployments)
-                .Select(o => new { o.Id, o.Name, o.Mode, o.AclId, o.Environment, o.Size, o.Deployments })
+                .Select(o => new { o.Id, o.Name, o.Mode, o.AclId, o.EnvironmentId, o.Environment, o.Size, o.Deployments })
                 .FirstOrDefaultAsync(o => o.Name == request.Name);
 
             if (app == null)
@@ -60,6 +67,14 @@ namespace ChurrOS.Api.Commands.Applications
             var parts = app.Environment!.EncryptionKey.Split(':');
             var encryptionKey = AesGcmEncryption.Decrypt(parts[0], _context.AccountEncryptionKey, parts[1]);
             var client = _runnerService.CreateClient(app.Environment!.Host[1], app.Environment.Name, app.Environment.Port, encryptionKey);
+
+            // Serialize the quota check + start against this environment so two concurrent
+            // starts can't both pass the budget check before either's ExecutionStatus updates.
+            var lockKey = $"churros_tenant:{_tenantResolver.AccountId}:env:{app.EnvironmentId}:resource_lock";
+            await using var handle = await _lockService.AcquireAsync(lockKey, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(5), cancellationToken)
+                ?? throw new InvalidOperationException("Environment is busy, please retry.");
+
+            await _mediator.Send(new EnsureEnvironmentRunningQuota(app.EnvironmentId, app.Id, app.Size, EnsureRunningQuotaMode.Start), cancellationToken);
 
             if (!string.IsNullOrWhiteSpace(request.DeploymentName))
             {

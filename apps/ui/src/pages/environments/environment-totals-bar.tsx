@@ -21,28 +21,31 @@ function ResourceUsageBar({
   label,
   resource,
   format,
-  totalDisplay
+  quotaDisplay
 }: {
   label: string;
   resource?: ResourceTotal;
   format: Format;
-  totalDisplay: string;
+  quotaDisplay: string;
 }) {
   const { t } = useTranslation();
   const used = resource?.used ?? 0;
   const requested = resource?.requested ?? 0;
-  const total = resource?.total;
-  // Scale relative to total when known, otherwise to the larger of (requested, used).
-  const denominator = total && total > 0 ? total : Math.max(requested, used, 1);
-  const usedPct = Math.min(100, (used / denominator) * 100);
-  // Requested is drawn behind used; clamp so the gray segment never exceeds the track.
-  const requestedPct = Math.min(100, (Math.max(requested, used) / denominator) * 100);
-  // Percentages in the tooltip are always relative to total. When no quota is set,
+  const allocated = resource?.allocated ?? 0;
+  const quota = resource?.quota;
+
+  // Scale relative to quota when known, otherwise to the largest tracked value.
+  const denominator = quota && quota > 0 ? quota : Math.max(allocated, requested, used, 1);
+  const pct = (value: number) => Math.min(100, (value / denominator) * 100);
+
+  const hasQuota = !!quota && quota > 0;
+  // Percentages in the tooltip are always relative to quota. When no quota is set,
   // a percentage is meaningless (the bar self-scales), so we omit the suffix.
-  const hasTotal = !!total && total > 0;
-  const pctSuffix = (value: number) => (hasTotal ? ` (${formatPercent((value / total!) * 100)})` : '');
-  const isOverAllocated = hasTotal && requested > total!;
-  const requestedBarClass = isOverAllocated
+  const pctSuffix = (value: number) => (hasQuota ? ` (${formatPercent((value / quota!) * 100)})` : '');
+  // Over-allocation is the cluster-meaningful overflow: Allocated > Quota means
+  // the env *could* exceed its ceiling if every app started. Highlight gray in amber.
+  const isOverAllocated = hasQuota && allocated > quota!;
+  const allocatedBarClass = isOverAllocated
     ? 'bg-amber-300 dark:bg-amber-600'
     : 'bg-gray-300 dark:bg-gray-600';
 
@@ -55,7 +58,7 @@ function ResourceUsageBar({
               <span className="text-xs text-muted-foreground">{label}</span>
               <span className="font-mono text-xs text-gray-700 dark:text-gray-300 ml-auto">
                 {formatValue(used, format)}
-                <span className="text-muted-foreground"> / {totalDisplay}</span>
+                <span className="text-muted-foreground"> / {quotaDisplay}</span>
               </span>
             </div>
             <div
@@ -63,15 +66,20 @@ function ResourceUsageBar({
               aria-label={label}
               aria-valuenow={used}
               aria-valuemin={0}
-              aria-valuemax={total ?? Math.max(requested, used)}
+              aria-valuemax={quota ?? Math.max(allocated, requested, used)}
               className="relative h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+              {/* Back-to-front: allocated (widest, gray) → requested (blue) → used (green). */}
               <div
-                className={`absolute inset-y-0 left-0 ${requestedBarClass}`}
-                style={{ width: `${requestedPct}%` }}
+                className={`absolute inset-y-0 left-0 ${allocatedBarClass}`}
+                style={{ width: `${pct(allocated)}%` }}
+              />
+              <div
+                className="absolute inset-y-0 left-0 bg-blue-500"
+                style={{ width: `${pct(requested)}%` }}
               />
               <div
                 className="absolute inset-y-0 left-0 bg-emerald-500"
-                style={{ width: `${usedPct}%` }}
+                style={{ width: `${pct(used)}%` }}
               />
             </div>
           </div>
@@ -83,12 +91,16 @@ function ResourceUsageBar({
               {pctSuffix(used)}
             </div>
             <div>
-              <span className={isOverAllocated ? 'text-amber-400' : 'text-gray-400'}>●</span> {t('Requested')}:{' '}
-              {formatValue(requested, format)}
+              <span className="text-blue-400">●</span> {t('Requested')}: {formatValue(requested, format)}
               {pctSuffix(requested)}
             </div>
+            <div>
+              <span className={isOverAllocated ? 'text-amber-400' : 'text-gray-400'}>●</span>{' '}
+              {t('Allocated')}: {formatValue(allocated, format)}
+              {pctSuffix(allocated)}
+            </div>
             <div className="text-muted-foreground">
-              {t('Total')}: {totalDisplay}
+              {t('Quota')}: {quotaDisplay}
             </div>
           </div>
         </TooltipContent>
@@ -100,19 +112,19 @@ function ResourceUsageBar({
 export function EnvironmentTotalsBar({
   cpu,
   memory,
-  cpuTotalDisplay,
-  memoryTotalDisplay
+  cpuQuotaDisplay,
+  memoryQuotaDisplay
 }: {
   cpu?: ResourceTotal;
   memory?: ResourceTotal;
-  cpuTotalDisplay: string;
-  memoryTotalDisplay: string;
+  cpuQuotaDisplay: string;
+  memoryQuotaDisplay: string;
 }) {
   const { t } = useTranslation();
   return (
     <div className="flex flex-row gap-6 items-center">
-      <ResourceUsageBar label={t('CPU')} resource={cpu} format="cores" totalDisplay={cpuTotalDisplay} />
-      <ResourceUsageBar label={t('MEM')} resource={memory} format="bytes" totalDisplay={memoryTotalDisplay} />
+      <ResourceUsageBar label={t('CPU')} resource={cpu} format="cores" quotaDisplay={cpuQuotaDisplay} />
+      <ResourceUsageBar label={t('MEM')} resource={memory} format="bytes" quotaDisplay={memoryQuotaDisplay} />
     </div>
   );
 }

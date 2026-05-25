@@ -22,9 +22,10 @@
     },
     "test": {
       "executor": "nx:run-commands",
+      "dependsOn": ["build"],
       "options": {
         "cwd": "apps/churrun-kubernetes",
-        "command": "dotnet test ChurrunKubernetes.slnx"
+        "command": "dotnet test ChurrunKubernetes.slnx --no-build"
       }
     },
     "publish": {

@@ -174,10 +174,19 @@ const SettingsPanel = ({
   return (
     <div className="overflow-hidden rounded-md border flex flex-col min-h-0 w-full h-full">
       <div className="flex flex-row justify-between py-2 px-2 ">
-        <div className="flex flex-row items-center">
-          <h3 className="text-sm text-muted-foreground">
+        <div className="flex flex-row items-center gap-2 leading-none">
+          <h3 className="text-sm text-muted-foreground leading-none">
             {t('Settings for')} {appName}
           </h3>
+          {app?.template && (
+            <span className="text-xs text-muted-foreground flex flex-row items-center gap-1 leading-none">
+              {renderIcon(app.template.icon ?? app.template.definition?.icon ?? 'blocks', 'size-4')}
+              <span className="leading-none">
+                {app.template.title ?? app.template.name}
+                {app.template.title && app.template.name ? ` - ${app.template.name}` : ''}
+              </span>
+            </span>
+          )}
         </div>
         <div className="flex flex-row items-center">
           <Button

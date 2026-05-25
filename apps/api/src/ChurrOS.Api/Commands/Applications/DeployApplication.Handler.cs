@@ -1,4 +1,5 @@
-﻿using ChurrOS.Api.Commands.Identity;
+﻿using ChurrOS.Api.Commands.Environment;
+using ChurrOS.Api.Commands.Identity;
 using ChurrOS.Api.Commands.Template;
 using ChurrOS.Api.Data;
 using ChurrOS.Api.Domain;
@@ -25,19 +26,25 @@ namespace ChurrOS.Api.Commands.Applications
         private readonly RunnerService _runnerService;
         private readonly ProxyConfigurationProvider _proxyConfigurationProvider;
         private readonly TemplateService _templateService;
+        private readonly ILockService _lockService;
+        private readonly ITenantResolver _tenantResolver;
 
         public DeployApplicationHandler(
             IMediator mediator,
             ChurrosDbContext context,
             RunnerService runnerService,
             ProxyConfigurationProvider proxyConfigurationProvider,
-            TemplateService templateService)
+            TemplateService templateService,
+            ILockService lockService,
+            ITenantResolver tenantResolver)
         {
             _mediator = mediator;
             _context = context;
             _runnerService = runnerService;
             _proxyConfigurationProvider = proxyConfigurationProvider;
             _templateService = templateService;
+            _lockService = lockService;
+            _tenantResolver = tenantResolver;
         }
 
         public async ValueTask<DeploymentSummary[]> Handle(DeployApplication request, CancellationToken cancellationToken)
@@ -167,48 +174,89 @@ namespace ChurrOS.Api.Commands.Applications
 
             var deploymentName = app.Mode == Models.Dtos.Application.ApplicationMode.Workspace ? $"{app.Name}-{deploymentOwnerId}" : app.Name;
             var deployRequest = new DeploymentRequestItem(deploymentName, app.Name, appTemplate.Name!, app.Replicas, app.Size, appParameters, extensions.ToArray(), ports.ToArray(), app.Variables);
-            var result = await client.DeployAsync(deployRequest, cancellationToken);
 
-            if (deployment is null)
+            // Templates render with replicas: 1, so applying the manifest schedules a pod
+            // immediately even though the row's ExecutionStatus stays Stopped until
+            // ScrapeDeploymentStateJob reconciles it. Treat that pod scheduling as a Start for
+            // quota purposes whenever the target deployment isn't already in the running set
+            // (new deployment, or existing one Stopped/Stopping). Re-deploying a Running/Starting
+            // deployment is a no-op for the running totals and skips the check.
+            var addsRunningInstance = deployment is null
+                || deployment.ExecutionStatus == DeploymentExecutionStatus.Stopped
+                || deployment.ExecutionStatus == DeploymentExecutionStatus.Stopping;
+
+            IAsyncDisposable? envLock = null;
+            if (addsRunningInstance)
             {
-                _context.Add(new Domain.ApplicationDeployment(
-                    accountId: app.AccountId,
-                    applicationId: app.Id,
-                    deploymentHash: result.Hash,
-                    name: deploymentName,
-                    ownerId: app.Mode == Models.Dtos.Application.ApplicationMode.Workspace ? deploymentOwnerId : null,
-                    provisionStatus: DeploymentProvisionStatus.Provisioning,
-                    executionStatus: DeploymentExecutionStatus.Stopped,
-                    deploymentStatus: null,
-                    deployedAt: now,
-                    tags: Array.Empty<string>(),
-                    metadata: null,
-                    createdAt: now,
-                    createdById: _context.IdentityId,
-                    modifiedAt: now,
-                    modifiedById: _context.IdentityId
-                ));
-            }
-            else
-            {
-                deployment.ProvisionStatus = DeploymentProvisionStatus.Provisioning;
-                deployment.DeploymentHash = result.Hash;
-                deployment.DeployedAt = now;
-                deployment.ModifiedAt = now;
-                deployment.ModifiedById = _context.IdentityId;
-                deployment.DeploymentStatus = null;
-                _context.Update(deployment);
+                var lockKey = $"churros_tenant:{_tenantResolver.AccountId}:env:{app.EnvironmentId}:resource_lock";
+                envLock = await _lockService.AcquireAsync(lockKey, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(5), cancellationToken)
+                    ?? throw new InvalidOperationException("Environment is busy, please retry.");
+                await _mediator.Send(new EnsureEnvironmentRunningQuota(app.EnvironmentId, app.Id, app.Size, EnsureRunningQuotaMode.Start), cancellationToken);
             }
 
-            await _context.SaveChangesAsync(cancellationToken);
-
-            if (app.Ports.Any())
+            try
             {
-                _proxyConfigurationProvider.AddApplication(app.Name, app.Ports, app.Environment.Name);
-                _proxyConfigurationProvider.Reload();
-            }
+                var result = await client.DeployAsync(deployRequest, cancellationToken);
 
-            return [result];
+                // When the deploy will add a running instance, persist ExecutionStatus = Starting
+                // before releasing the env lock so any concurrent Deploy/Start/Update that takes
+                // the lock immediately after counts this pod's contribution against the env budget.
+                // ScrapeDeploymentStateJob later reconciles to Running or back to Stopped based on
+                // actual replica state. Without this, the lock-through-SaveChanges pattern leaks:
+                // the row would be saved as Stopped and EnsureEnvironmentRunningQuota — which
+                // filters on Running/Starting — would miss it, allowing two concurrent Deploys to
+                // each pass a check that should have caught the second.
+                var newExecutionStatus = addsRunningInstance
+                    ? DeploymentExecutionStatus.Starting
+                    : (deployment?.ExecutionStatus ?? DeploymentExecutionStatus.Stopped);
+
+                if (deployment is null)
+                {
+                    _context.Add(new Domain.ApplicationDeployment(
+                        accountId: app.AccountId,
+                        applicationId: app.Id,
+                        deploymentHash: result.Hash,
+                        name: deploymentName,
+                        ownerId: app.Mode == Models.Dtos.Application.ApplicationMode.Workspace ? deploymentOwnerId : null,
+                        provisionStatus: DeploymentProvisionStatus.Provisioning,
+                        executionStatus: newExecutionStatus,
+                        deploymentStatus: null,
+                        deployedAt: now,
+                        tags: Array.Empty<string>(),
+                        metadata: null,
+                        createdAt: now,
+                        createdById: _context.IdentityId,
+                        modifiedAt: now,
+                        modifiedById: _context.IdentityId
+                    ));
+                }
+                else
+                {
+                    deployment.ProvisionStatus = DeploymentProvisionStatus.Provisioning;
+                    deployment.ExecutionStatus = newExecutionStatus;
+                    deployment.DeploymentHash = result.Hash;
+                    deployment.DeployedAt = now;
+                    deployment.ModifiedAt = now;
+                    deployment.ModifiedById = _context.IdentityId;
+                    deployment.DeploymentStatus = null;
+                    _context.Update(deployment);
+                }
+
+                await _context.SaveChangesAsync(cancellationToken);
+
+                if (app.Ports.Any())
+                {
+                    _proxyConfigurationProvider.AddApplication(app.Name, app.Ports, app.Environment.Name);
+                    _proxyConfigurationProvider.Reload();
+                }
+
+                return [result];
+            }
+            finally
+            {
+                if (envLock is not null)
+                    await envLock.DisposeAsync();
+            }
         }
 
         private async Task<IList<IDictionary<string, string>>?> TransformTransforms(PortDefinition templatePort, JsonObject jsonBaseArgs)

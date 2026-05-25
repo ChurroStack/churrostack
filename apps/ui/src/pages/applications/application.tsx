@@ -62,9 +62,17 @@ import { SchedulesPanel } from './panels/schedules-panel';
 const Application = () => {
   const { t } = useTranslation();
   const { id } = useParams();
-  const { reload } = useApplicationService();
+  const { reload, setCurrentApplication } = useApplicationService();
   const { fetchAsync, data, isFetching, error } = useGetApplication(id);
   const [app, setApp] = useState(data);
+
+  useEffect(() => {
+    setCurrentApplication(app);
+  }, [app, setCurrentApplication]);
+
+  useEffect(() => {
+    return () => setCurrentApplication(undefined);
+  }, [setCurrentApplication]);
   const navigate = useNavigate();
   const { error: deleteError, deleteAsync } = useDeleteApplication();
   const {

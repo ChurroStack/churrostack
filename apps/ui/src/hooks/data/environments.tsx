@@ -218,7 +218,8 @@ export function useAnalyzeEnvironmentUsage(environmentName: string) {
 export interface ResourceTotal {
   used: number;
   requested: number;
-  total?: number;
+  allocated: number;
+  quota?: number;
 }
 
 export interface EnvironmentTotals {

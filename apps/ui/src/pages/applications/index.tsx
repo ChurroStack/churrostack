@@ -19,7 +19,7 @@ import { useDebounce } from '@/hooks/use-debounce';
 export default function Applications() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data, error, isFetching, reload } = useApplicationService();
+  const { data, error, isFetching, reload, currentApplication } = useApplicationService();
   const [showNewApplicationDialog, setShowNewApplicationDialog] = useState(false);
   const { error: deleteError, deleteAsync } = useDeleteApplication();
   const [searchValue, setSearchValue] = useState('');
@@ -61,8 +61,26 @@ export default function Applications() {
             </BreadcrumbItem>
             <BreadcrumbSeparator className="hidden md:block" />
             <BreadcrumbItem>
-              <BreadcrumbPage>Applications</BreadcrumbPage>
+              {currentApplication?.environmentName ? (
+                <BreadcrumbLink onClick={() => navigate('/applications')} href="#">
+                  Applications
+                </BreadcrumbLink>
+              ) : (
+                <BreadcrumbPage>Applications</BreadcrumbPage>
+              )}
             </BreadcrumbItem>
+            {currentApplication?.environmentName && (
+              <>
+                <BreadcrumbSeparator className="hidden md:block" />
+                <BreadcrumbItem>
+                  <BreadcrumbLink
+                    onClick={() => navigate(`/environments/${currentApplication.environmentName}`)}
+                    href="#">
+                    {currentApplication.environmentName}
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+              </>
+            )}
           </>
         }
         buttons={

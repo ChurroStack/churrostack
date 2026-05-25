@@ -19,6 +19,12 @@ These rules take precedence over all other guidance in this file.
 - Always verify `pwd` before editing; this repo uses git worktrees and edits must land in the active worktree, not the main repo path.
 - If a worktree directory appears missing or stale, stop and ask before retrying exploration.
 
+## Concepts
+
+Canonical vocabulary docs live under [`docs/concepts/`](docs/concepts/). Read the relevant one before touching the area — names are deliberate and the UI, API, and enforcement code are expected to use the same words.
+
+- [Environment resources — Used / Requested / Allocated / Quota](docs/concepts/environment-resources.md): what each of the four resource numbers means, where they're computed, and how CPU/Memory quota enforcement (`EnsureEnvironmentRunningQuota` + per-env Redis lock) works.
+
 ## Traceability
 
 - Add useful trace information for new implementation paths, especially at process boundaries, external tool/API calls, persistence reads/writes, approval/permission decisions, and error/fallback branches.
