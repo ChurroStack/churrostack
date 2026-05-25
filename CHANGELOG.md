@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/ChurroStack/churrostack/compare/v1.0.1...v1.0.2) (2026-05-25)
+
+
+### Bug Fixes
+
+* **ui:** track apps/ui/.env so prod build has OIDC clientId ([#10](https://github.com/ChurroStack/churrostack/issues/10)) ([c3e690d](https://github.com/ChurroStack/churrostack/commit/c3e690d68507f6f307e0360813e71ccfdbc6ce1d))
+
 ## [1.0.1](https://github.com/ChurroStack/churrostack/compare/v1.0.0...v1.0.1) (2026-05-25)
 
 
