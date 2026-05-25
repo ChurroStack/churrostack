@@ -1,6 +1,8 @@
 import { formatDistanceToNow as formatDistanceToNowFns, format } from 'date-fns';
 import { DynamicIcon } from 'lucide-react/dynamic';
 
+export const getBrowserTz = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 export function formatDistanceToNow(rawDate: string | Date) {
   if (!rawDate || rawDate === '') {
     return '';

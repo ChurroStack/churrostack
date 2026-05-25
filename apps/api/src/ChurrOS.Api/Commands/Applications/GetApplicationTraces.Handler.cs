@@ -49,9 +49,9 @@ namespace ChurrOS.Api.Commands.Applications
                     throw new UnauthorizedAccessException("You do not have permission to read this application.");
             }
 
-            // Set the time range window
-            var from = request.Query.From ?? DateTime.Today;
-            var to = request.Query.To ?? DateTime.Today.AddDays(1);
+            // Set the time range window (UTC defaults so behavior is independent of the server's TZ).
+            var from = request.Query.From ?? DateTime.UtcNow.Date;
+            var to = request.Query.To ?? DateTime.UtcNow.Date.AddDays(1);
 
             if (from >= to)
             {

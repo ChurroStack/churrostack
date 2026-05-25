@@ -3,22 +3,14 @@ import MemoryUsageChart from '../charts/memory-usage';
 import CpuUsageChart from '../charts/cpu-usage';
 import { DateTimeRangePicker } from '@/components/date-time-range-picker';
 import { useState } from 'react';
+import { subHours } from 'date-fns';
 import BytesInChart from '../charts/bytes-in';
 import BytesOutChart from '../charts/bytes-out';
 import ApplicationUsage from '../charts/usage-summary';
 
 const MonitorPanel = ({ appName, maxMemory, maxCpu }: { appName: string; maxMemory?: string; maxCpu?: string }) => {
-  const [fromDate, setFromDate] = useState<Date | undefined>(() => {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    return date;
-  });
-
-  const [toDate, setToDate] = useState<Date | undefined>(() => {
-    const date = new Date();
-    date.setHours(23, 59, 59, 999);
-    return date;
-  });
+  const [fromDate, setFromDate] = useState<Date | undefined>(() => subHours(new Date(), 1));
+  const [toDate, setToDate] = useState<Date | undefined>(() => new Date());
 
   return (
     <div className="flex flex-col w-full gap-2 h-full overflow-auto">

@@ -112,9 +112,9 @@ namespace ChurrOS.Api.Controllers
         [ProducesResponseType(typeof(MetricValuesItem), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetLlmMetrics(long llmId, string metricName, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, CancellationToken cancellationToken)
+        public async Task<IActionResult> GetLlmMetrics(long llmId, string metricName, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, [FromQuery] string? tz, CancellationToken cancellationToken)
         {
-            var result = await _mediator.Send(new GetLlmMetrics(llmId, metricName, from, to), cancellationToken);
+            var result = await _mediator.Send(new GetLlmMetrics(llmId, metricName, from, to, tz), cancellationToken);
             return Ok(result);
         }
 
