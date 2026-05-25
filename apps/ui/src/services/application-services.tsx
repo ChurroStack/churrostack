@@ -1,6 +1,6 @@
 import type { QueryResult } from '@/hooks/data/core';
 import { useGetApplications, type ApplicationItem, type ApplicationSummary } from '@/hooks/data/applications';
-import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 type ApplicationServiceContextType = {
   isFetching: boolean;
@@ -8,6 +8,8 @@ type ApplicationServiceContextType = {
   data?: QueryResult<ApplicationSummary>;
   createApplication?: (item: ApplicationItem) => Promise<void>;
   reload: (queryString?: string) => void;
+  currentApplication?: ApplicationItem;
+  setCurrentApplication: (item: ApplicationItem | undefined) => void;
 };
 
 const ApplicationServiceContext = createContext<ApplicationServiceContextType | undefined>(undefined);
@@ -20,6 +22,7 @@ export const useApplicationService = () => {
 
 export const ApplicationServiceProvider = ({ children }: { children: ReactNode }) => {
   const { fetchAsync, data, error, isFetching } = useGetApplications();
+  const [currentApplication, setCurrentApplication] = useState<ApplicationItem | undefined>(undefined);
 
   useEffect(() => {
     fetchAsync('');
@@ -31,7 +34,9 @@ export const ApplicationServiceProvider = ({ children }: { children: ReactNode }
         reload: (queryString?: string) => fetchAsync(queryString ?? ''),
         data,
         error,
-        isFetching
+        isFetching,
+        currentApplication,
+        setCurrentApplication
       }}>
       {children}
     </ApplicationServiceContext.Provider>

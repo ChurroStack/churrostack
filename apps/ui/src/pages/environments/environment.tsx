@@ -285,8 +285,8 @@ const Environment = () => {
                   <EnvironmentTotalsBar
                     cpu={totals?.cpu}
                     memory={totals?.memory}
-                    cpuTotalDisplay={environment.definition?.limits?.cpu ?? '∞'}
-                    memoryTotalDisplay={environment.definition?.limits?.memory ?? '∞'}
+                    cpuQuotaDisplay={environment.definition?.limits?.cpu ?? '∞'}
+                    memoryQuotaDisplay={environment.definition?.limits?.memory ?? '∞'}
                   />
                 )}
                 <Button

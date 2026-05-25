@@ -3,6 +3,15 @@
 The repository-wide agent guide at [`AGENTS.md`](../../AGENTS.md) (monorepo
 root) takes precedence over this file — read it first.
 
+## Concepts
+
+Before touching resource/quota code paths, read the canonical vocabulary in
+[`docs/concepts/environment-resources.md`](../../docs/concepts/environment-resources.md)
+— covers Used / Requested / Allocated / Quota, where each value is computed
+(`GetEnvironmentTotals`, `ScrapeMetricsJob`), and how runtime CPU/Memory quota
+is enforced (`EnsureEnvironmentRunningQuota` + per-env Redis lock from
+`StartApplicationHandler` / `UpdateApplicationHandler`).
+
 ## Overview
 
 `apps/api` is the ChurroStack backend: a C# .NET 10 ASP.NET Core service named

@@ -52,12 +52,6 @@ namespace ChurrunKubernetes.Commands.Deployment
                 }
             }
 
-            // Ensure environment has quota
-            if (request.Body.Size is not null)
-            {
-                await _mediator.Send(new EnsureEnvironmentHasQuota(request.Body.Size), cancellationToken);
-            }
-
             // Obtain base template and extensions
             var templateItem = await _mediator.Send(new GetTemplate(request.Body.Template), cancellationToken);
             request.Body.Template = $"{request.Body.Template}/{Convert.ToBase64String(templateItem.Hash)}";

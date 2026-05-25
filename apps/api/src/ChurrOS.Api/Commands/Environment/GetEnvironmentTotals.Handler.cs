@@ -1,5 +1,6 @@
 using ChurrOS.Api.Commands.Identity;
 using ChurrOS.Api.Data;
+using ChurrOS.Api.Models.Dtos.Deployment;
 using ChurrOS.Api.Models.Dtos.Environment;
 using ChurrOS.Api.Models.Dtos.Identity;
 using ChurrOS.Api.Services;
@@ -53,18 +54,43 @@ namespace ChurrOS.Api.Commands.Environment
 
             var result = new EnvironmentTotalsItem();
 
-            // Requested: sum of every app's configured Size (running OR stopped — represents committed intent).
+            // Allocated: sum of every app's configured Size (running OR stopped — total configured intent).
             foreach (var app in apps)
             {
                 if (app.Size == null)
                     continue;
                 if (!string.IsNullOrWhiteSpace(app.Size.Cpu) && app.Size.Cpu.TryParseCpuToCores(out var cpu))
-                    result.Cpu.Requested += cpu;
+                    result.Cpu.Allocated += cpu;
                 if (!string.IsNullOrWhiteSpace(app.Size.Memory) && app.Size.Memory.TryParseMemoryToBytes(out var memory))
-                    result.Memory.Requested += memory;
+                    result.Memory.Allocated += memory;
                 if (!string.IsNullOrWhiteSpace(app.Size.Gpu) && app.Size.Gpu.TryParseCpuToCores(out var gpu))
-                    result.Gpu.Requested += gpu;
+                    result.Gpu.Allocated += gpu;
                 if (!string.IsNullOrWhiteSpace(app.Size.Storage) && app.Size.Storage.TryParseMemoryToBytes(out var storage))
+                    result.Storage.Allocated += storage;
+            }
+
+            // Requested: sum of Size across Running/Starting deployments. Mirrors
+            // EnsureEnvironmentRunningQuota — per-deployment, so a Workspace app with N active
+            // per-user deployments contributes N × Size (matches what the cluster reserves).
+            var runningDeployments = await _context.Set<Domain.ApplicationDeployment>()
+                .AsNoTracking()
+                .Where(d => d.Application!.EnvironmentId == environment.Id
+                         && (d.ExecutionStatus == DeploymentExecutionStatus.Running
+                          || d.ExecutionStatus == DeploymentExecutionStatus.Starting))
+                .Select(d => new { d.Application!.Size })
+                .ToListAsync(cancellationToken);
+
+            foreach (var d in runningDeployments)
+            {
+                if (d.Size == null)
+                    continue;
+                if (!string.IsNullOrWhiteSpace(d.Size.Cpu) && d.Size.Cpu.TryParseCpuToCores(out var cpu))
+                    result.Cpu.Requested += cpu;
+                if (!string.IsNullOrWhiteSpace(d.Size.Memory) && d.Size.Memory.TryParseMemoryToBytes(out var memory))
+                    result.Memory.Requested += memory;
+                if (!string.IsNullOrWhiteSpace(d.Size.Gpu) && d.Size.Gpu.TryParseCpuToCores(out var gpu))
+                    result.Gpu.Requested += gpu;
+                if (!string.IsNullOrWhiteSpace(d.Size.Storage) && d.Size.Storage.TryParseMemoryToBytes(out var storage))
                     result.Storage.Requested += storage;
             }
 
@@ -97,14 +123,14 @@ namespace ChurrOS.Api.Commands.Environment
                 }
             }
 
-            // Total: env quota ceiling (parsed from the same strings the header already shows).
+            // Quota: env hard ceiling (parsed from the same strings the header already shows).
             var limits = environment.Definition?.Limits;
             if (limits != null)
             {
-                result.Cpu.Total = TryParseCores(limits.Cpu);
-                result.Memory.Total = TryParseBytes(limits.Memory);
-                result.Gpu.Total = TryParseCores(limits.Gpu);
-                result.Storage.Total = TryParseBytes(limits.Storage);
+                result.Cpu.Quota = TryParseCores(limits.Cpu);
+                result.Memory.Quota = TryParseBytes(limits.Memory);
+                result.Gpu.Quota = TryParseCores(limits.Gpu);
+                result.Storage.Quota = TryParseBytes(limits.Storage);
             }
 
             return result;

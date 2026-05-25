@@ -1,9 +1,11 @@
-﻿using ChurrOS.Api.Commands.Identity;
+﻿using ChurrOS.Api.Commands.Environment;
+using ChurrOS.Api.Commands.Identity;
 using ChurrOS.Api.Commands.Template;
 using ChurrOS.Api.Data;
 using ChurrOS.Api.Domain;
 using ChurrOS.Api.Models.Dtos;
 using ChurrOS.Api.Models.Dtos.Application;
+using ChurrOS.Api.Models.Dtos.Deployment;
 using ChurrOS.Api.Models.Dtos.Identity;
 using ChurrOS.Api.Models.Dtos.Template.Definition;
 using ChurrOS.Api.Services;
@@ -25,8 +27,9 @@ namespace ChurrOS.Api.Commands.Applications
         private readonly ITenantResolver _tenantResolver;
         private readonly ClientNotificationService _clientNotificationService;
         private readonly ICacheService _cacheService;
+        private readonly ILockService _lockService;
 
-        public UpdateApplicationHandler(IMediator mediator, ChurrosDbContext context, IMapper mapper, ITenantResolver tenantResolver, ClientNotificationService clientNotificationService, ICacheService cacheService)
+        public UpdateApplicationHandler(IMediator mediator, ChurrosDbContext context, IMapper mapper, ITenantResolver tenantResolver, ClientNotificationService clientNotificationService, ICacheService cacheService, ILockService lockService)
         {
             _mediator = mediator;
             _context = context;
@@ -34,6 +37,7 @@ namespace ChurrOS.Api.Commands.Applications
             _tenantResolver = tenantResolver;
             _clientNotificationService = clientNotificationService;
             _cacheService = cacheService;
+            _lockService = lockService;
         }
 
         public async ValueTask<ApplicationItem> Handle(UpdateApplication request, CancellationToken cancellationToken)
@@ -65,7 +69,28 @@ namespace ChurrOS.Api.Commands.Applications
                 .Select(o => o.Identity!.Id)
                 .ToListAsync(cancellationToken);
 
+            // If size is being updated and the app currently has any Running/Starting deployment,
+            // serialize the size change against StartApplication calls on the same environment so
+            // a concurrent start can't squeeze in between our quota check and SaveChangesAsync.
+            IAsyncDisposable? envLock = null;
+            var enforceSizeQuota = false;
+            if (request.Body.TryGetProperty("size", out _))
+            {
+                enforceSizeQuota = await _context.Set<Domain.ApplicationDeployment>()
+                    .AnyAsync(d => d.ApplicationId == app.Id
+                                && (d.ExecutionStatus == DeploymentExecutionStatus.Running
+                                 || d.ExecutionStatus == DeploymentExecutionStatus.Starting), cancellationToken);
+                if (enforceSizeQuota)
+                {
+                    var lockKey = $"churros_tenant:{_tenantResolver.AccountId}:env:{app.EnvironmentId}:resource_lock";
+                    envLock = await _lockService.AcquireAsync(lockKey, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(5), cancellationToken)
+                        ?? throw new InvalidOperationException("Environment is busy, please retry.");
+                }
+            }
+
             long[]? updatedMembers = null;
+            try
+            {
             foreach (var entry in request.Body.EnumerateObject())
             {
                 switch (entry.Name)
@@ -74,8 +99,15 @@ namespace ChurrOS.Api.Commands.Applications
                         app.Variables = entry.Value.Deserialize<ApplicationEnvironmentVariable[]>(JsonSettings.Value)!;
                         break;
                     case "size":
-                        app.Size = entry.Value.Deserialize<SizeRequestItem>(JsonSettings.Value)!;
-                        break;
+                        {
+                            var newSize = entry.Value.Deserialize<SizeRequestItem>(JsonSettings.Value)!;
+                            if (enforceSizeQuota)
+                            {
+                                await _mediator.Send(new EnsureEnvironmentRunningQuota(app.EnvironmentId, app.Id, newSize, EnsureRunningQuotaMode.Update), cancellationToken);
+                            }
+                            app.Size = newSize;
+                            break;
+                        }
                     case "parameters":
                         app.Parameters = entry.Value.Deserialize<IDictionary<string, string[]>>(JsonSettings.Value)!;
                         break;
@@ -106,6 +138,12 @@ namespace ChurrOS.Api.Commands.Applications
             app.ModifiedById = _context.IdentityId;
 
             await _context.SaveChangesAsync();
+            }
+            finally
+            {
+                if (envLock != null)
+                    await envLock.DisposeAsync();
+            }
 
             foreach (var identityId in new long[0].Union(membersToPurge ?? []).Union(updatedMembers ?? []).Distinct())
             {

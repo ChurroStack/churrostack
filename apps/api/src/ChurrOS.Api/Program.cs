@@ -534,6 +534,7 @@ namespace ChurrOS.Api
             builder.Services.AddScoped<QuotaService, QuotaService>();
             builder.Services.AddSingleton<IIdGeneratorService, IdGenerationService>();
             builder.Services.AddSingleton<ICacheService, RedisCacheService>();
+            builder.Services.AddSingleton<ILockService, RedisLockService>();
             builder.Services.AddSingleton<IQueueService, RedisStreamService>();
             builder.Services.AddSingleton<TemplateService, TemplateService>();
             builder.Services.AddSingleton<RunnerService, RunnerService>();

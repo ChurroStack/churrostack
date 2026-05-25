@@ -6,6 +6,14 @@ root) takes precedence over this file — read it first.
 The rest of this file is the project-specific guide for `ui` — a Vite + React 19
 PWA that consumes the `api` backend.
 
+## Concepts
+
+Before touching the environment resource bar or per-app resource displays, read
+[`docs/concepts/environment-resources.md`](../../docs/concepts/environment-resources.md)
+— defines Used / Requested / Allocated / Quota and the color mapping the
+`EnvironmentTotalsBar` component uses (green / blue / gray / track). User-facing
+strings should match that vocabulary.
+
 ## Commands
 
 ```bash
