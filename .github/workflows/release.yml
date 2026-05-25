@@ -4,10 +4,21 @@ name: Release
 # release PR; merging it cuts one unified vX.Y.Z tag + GitHub Release. The
 # publish job then builds & pushes only the images whose files changed since
 # the previous release, tagged <name>:X.Y.Z and <name>:latest.
+#
+# workflow_dispatch with a `tag` input re-publishes an existing release tag
+# without going through release-please. Used to backfill images for a tag
+# that was created out-of-band (e.g. the v1.0.0 bootstrap) or to re-run a
+# publish that failed.
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to (re)publish (e.g. v1.0.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -20,6 +31,7 @@ concurrency:
 jobs:
   release-please:
     name: release-please
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.rp.outputs.release_created }}
@@ -36,17 +48,36 @@ jobs:
   detect:
     name: Detect changed images
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: |
+      always() && (
+        needs.release-please.outputs.release_created == 'true' ||
+        github.event_name == 'workflow_dispatch'
+      )
     runs-on: ubuntu-latest
     outputs:
       images: ${{ steps.detect.outputs.images }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      version: ${{ steps.resolve.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag='${{ inputs.tag }}'
+          else
+            tag='${{ needs.release-please.outputs.tag_name }}'
+          fi
+          if ! git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
+            echo "tag $tag does not exist" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
       - id: detect
         run: |
-          tag='${{ needs.release-please.outputs.tag_name }}'
+          tag='${{ steps.resolve.outputs.tag }}'
           # Previous release tag, or empty on the first release (build all).
           prev="$(git describe --tags --abbrev=0 --match 'v*' "${tag}^" 2>/dev/null || true)"
           echo "previous tag: ${prev:-<none, first release>}"
@@ -57,8 +88,8 @@ jobs:
   publish:
     name: Publish ${{ matrix.image.name }}
     needs: [release-please, detect]
-    if: >-
-      needs.release-please.outputs.release_created == 'true' &&
+    if: |
+      always() && needs.detect.result == 'success' &&
       needs.detect.outputs.images != '[]' &&
       needs.detect.outputs.images != ''
     runs-on: ubuntu-latest
@@ -70,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ needs.detect.outputs.tag }}
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -82,7 +113,7 @@ jobs:
         with:
           images: quay.io/churrostack/${{ matrix.image.name }}
           tags: |
-            type=raw,value=${{ needs.release-please.outputs.version }}
+            type=raw,value=${{ needs.detect.outputs.version }}
             type=raw,value=latest
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -95,4 +126,4 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
-          build-args: ${{ matrix.image.versionArg && format('VERSION={0}', needs.release-please.outputs.version) || '' }}
+          build-args: ${{ matrix.image.versionArg && format('VERSION={0}', needs.detect.outputs.version) || '' }}
