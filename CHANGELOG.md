@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/ChurroStack/churrostack/compare/v1.0.2...v1.0.3) (2026-05-25)
+
+
+### Bug Fixes
+
+* **api:** truncate metric tables in RetypeCpuGpuMetricsAsGauge ([#12](https://github.com/ChurroStack/churrostack/issues/12)) ([0602891](https://github.com/ChurroStack/churrostack/commit/06028913fe45e49b0bcb01fc2fbec909cfdfe5dd))
+
 ## [1.0.2](https://github.com/ChurroStack/churrostack/compare/v1.0.1...v1.0.2) (2026-05-25)
 
 
