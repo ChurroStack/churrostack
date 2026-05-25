@@ -10,8 +10,11 @@ import {
   useRotateEnvironmentKeys,
   useGetEnvironment,
   useEnvironmentTest,
-  useDeleteEnvironment
+  useDeleteEnvironment,
+  useAnalyzeEnvironmentUsage,
+  useGetEnvironmentTotals
 } from '@/hooks/data/environments';
+import { useMyPermission } from '@/hooks/data/identities';
 import {
   AlertCircle,
   AppWindow,
@@ -19,6 +22,7 @@ import {
   CircleAlert,
   Cog,
   FileDown,
+  Gauge,
   HardDriveUpload,
   KeyRound,
   Plus,
@@ -46,7 +50,10 @@ import { useNotifications } from '@/services/notification-service';
 import EnvironmentContextMenu from './menus/environment-menu';
 import { useEnvironmentService } from '@/services/environment-services';
 import EnvironmentsApplicationsPanel from './panels/applications-panel';
+import EnvironmentUsagePanel from './panels/usage-panel';
+import { EnvironmentTotalsBar } from './environment-totals-bar';
 import AccessPanel from './panels/members-panel';
+import { toast } from 'sonner';
 
 const formSchema = z.object({});
 
@@ -69,10 +76,14 @@ const Environment = () => {
     data: rotatedEnvironmentKeysData,
     reset: resetRotateEnvironmentKeys
   } = useRotateEnvironmentKeys(environment?.name ?? data?.name);
-  const [defaultView, setDefaultView] = useState<'applications' | 'setup'>('applications');
+  const [defaultView, setDefaultView] = useState<'applications' | 'setup' | 'usage' | 'security'>('applications');
+  const [usageReloadSignal, setUsageReloadSignal] = useState(0);
   const navigate = useNavigate();
   const { reload } = useEnvironmentService();
   const { error: deleteError, deleteAsync } = useDeleteEnvironment();
+  const { canManage } = useMyPermission(environment?.members);
+  const { postAsync: analyzeUsageAsync } = useAnalyzeEnvironmentUsage(environment?.name ?? id ?? '');
+  const { data: totals, fetchAsync: fetchTotalsAsync } = useGetEnvironmentTotals(environment?.name ?? id);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: standardSchemaResolver(formSchema),
     defaultValues: {},
@@ -107,6 +118,15 @@ const Environment = () => {
     }
   }, [environment, defaultView, environment?.provisionStatus]);
 
+  // Refresh the header usage bars when the environment loads and then every 60s
+  // (matches the cache cadence ScrapeMetricsJob writes into Redis).
+  useEffect(() => {
+    if (!environment?.name || environment.provisionStatus !== 'provisioned') return;
+    fetchTotalsAsync('');
+    const handle = window.setInterval(() => fetchTotalsAsync(''), 60_000);
+    return () => window.clearInterval(handle);
+  }, [environment?.name, environment?.provisionStatus, fetchTotalsAsync]);
+
   const testEnvironment = async () => {
     await testAsync({});
   };
@@ -115,6 +135,17 @@ const Environment = () => {
     await deleteAsync(environmentName);
     navigate('/environments');
     reload();
+  };
+
+  const onAnalyzeUsage = async () => {
+    const result = await analyzeUsageAsync();
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(t('Usage analysis completed.'));
+    setUsageReloadSignal((signal) => signal + 1);
+    setDefaultView('usage');
   };
 
   const downloadValuesYaml = () => {
@@ -166,7 +197,12 @@ const Environment = () => {
             {isTesting ? <Spinner /> : environment?.health?.healthy ? <CheckCircle2Icon /> : <CircleAlert />}{' '}
             {t('Connect & Sync')}
           </Button>
-          <EnvironmentContextMenu onDeleteEnvironment={onDeleteEnvironment} name={environment?.name ?? ''} />
+          <EnvironmentContextMenu
+            onDeleteEnvironment={onDeleteEnvironment}
+            onAnalyzeUsage={onAnalyzeUsage}
+            canManage={canManage}
+            name={environment?.name ?? ''}
+          />
         </div>
       </div>
       <NewApplicationDialog
@@ -230,6 +266,13 @@ const Environment = () => {
                   <Cog /> {t('Setup')}
                 </div>
               </TabsTrigger>
+              {canManage && (
+                <TabsTrigger value="usage">
+                  <div className="flex flex-row items-center gap-2 px-2">
+                    <Gauge /> {t('Usage')}
+                  </div>
+                </TabsTrigger>
+              )}
               <TabsTrigger value="security">
                 <div className="flex flex-row items-center gap-2 px-2">
                   <UserLock /> {t('Manage Access')}
@@ -238,21 +281,13 @@ const Environment = () => {
             </TabsList>
             {environment.provisionStatus === 'provisioned' && (
               <div className="flex flex-row gap-4 items-center">
-                {environment.definition?.limits?.cpu && (
-                  <div className="flex flex-row gap-1 items-center">
-                    <div className="text-sm text-muted-foreground">{t('CPU')}</div>
-                    <div className="font-mono text-sm text-gray-700 dark:text-gray-300 font-bold">
-                      {environment.definition?.limits?.cpu}
-                    </div>
-                  </div>
-                )}
-                {environment.definition?.limits?.memory && (
-                  <div className="flex flex-row gap-1 items-center">
-                    <div className="text-sm text-muted-foreground">{t('MEM')}</div>
-                    <div className="font-mono text-sm text-gray-700 dark:text-gray-300 font-bold">
-                      {environment.definition?.limits?.memory}
-                    </div>
-                  </div>
+                {(environment.definition?.limits?.cpu || environment.definition?.limits?.memory) && (
+                  <EnvironmentTotalsBar
+                    cpu={totals?.cpu}
+                    memory={totals?.memory}
+                    cpuTotalDisplay={environment.definition?.limits?.cpu ?? '∞'}
+                    memoryTotalDisplay={environment.definition?.limits?.memory ?? '∞'}
+                  />
                 )}
                 <Button
                   className="ml-4"
@@ -269,6 +304,13 @@ const Environment = () => {
           <TabsContent value="applications" className="flex flex-col min-h-0 w-full h-full">
             {environment?.name && <EnvironmentsApplicationsPanel environmentName={environment.name} />}
           </TabsContent>
+          {canManage && (
+            <TabsContent value="usage" className="flex flex-col min-h-0 w-full h-full">
+              {environment?.name && (
+                <EnvironmentUsagePanel environmentName={environment.name} reloadSignal={usageReloadSignal} />
+              )}
+            </TabsContent>
+          )}
           <TabsContent value="setup" className="flex flex-col min-h-0 w-full h-full">
             <Card className="w-full max-w-full">
               <CardHeader>

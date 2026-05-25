@@ -1,5 +1,6 @@
 import { AppWindowMac, Contact, ShieldUser, User, Users } from 'lucide-react';
 import { type QueryResult, useDelete, useGet, type UseGetResult, usePost } from './core';
+import { useProfile } from './profile';
 
 export type IdentityType = 'user' | 'group' | 'application';
 export type IdentityRole = 'user' | 'administrator';
@@ -71,6 +72,37 @@ export function getPermissionLevel(permission: number): IdentityPermissionLevel 
   } else {
     return 'none';
   }
+}
+
+export interface MyPermission {
+  permission: number;
+  isAdmin: boolean;
+  canEdit: boolean;
+  canManage: boolean;
+}
+
+/**
+ * Resolves the current user's effective permission on an entity from its member
+ * list, accounting for group memberships and the administrator role.
+ */
+export function useMyPermission(members?: MemberSummary[]): MyPermission {
+  const { profile } = useProfile();
+  const isAdmin = profile?.role === 'administrator';
+  const identityNames = profile ? [profile.name, ...(profile.memberOf ?? [])] : [];
+
+  let permission = PermissionHelper.None;
+  for (const member of members ?? []) {
+    if (member.identity && identityNames.includes(member.identity.name)) {
+      permission |= member.permission;
+    }
+  }
+
+  return {
+    permission,
+    isAdmin,
+    canEdit: isAdmin || (permission & PermissionHelper.Write) !== 0,
+    canManage: isAdmin || (permission & PermissionHelper.Manage) !== 0
+  };
 }
 
 export function getPermission(permissionLevel: IdentityPermissionLevel): number {

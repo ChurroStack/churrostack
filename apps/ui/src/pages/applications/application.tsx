@@ -1,17 +1,21 @@
 import { LoadingSkeleton } from '@/components/loading-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { renderIcon } from '@/extensions';
+import { formatBytes, renderIcon } from '@/extensions';
 import {
   getApplicationStatus,
+  useAnalyzeApplicationUsage,
   useDeleteApplication,
   useDeployApplication,
   useGetApplication,
+  useGetApplicationSizeRecommendation,
   useStartApplication,
   useStopApplication,
   type DeploymentExecutionStatus,
   type DeploymentProvisionStatus
 } from '@/hooks/data/applications';
+import { useMyPermission } from '@/hooks/data/identities';
+import { toast } from 'sonner';
 import {
   AlertCircle,
   AppWindow,
@@ -22,6 +26,7 @@ import {
   ExternalLink,
   Keyboard,
   Layers,
+  Lightbulb,
   Logs,
   Play,
   Share2,
@@ -75,6 +80,29 @@ const Application = () => {
   const { postAsync: stopAsync, isFetching: isStopping, error: stopError } = useStopApplication(data?.name ?? id ?? '');
 
   const { subscribe } = useNotifications();
+
+  const [activeTab, setActiveTab] = useState('events');
+  const { canEdit, canManage } = useMyPermission(app?.members);
+  const { data: recommendation, fetchAsync: fetchRecommendation } = useGetApplicationSizeRecommendation(id);
+  const { postAsync: analyzeUsageAsync } = useAnalyzeApplicationUsage(data?.name ?? id ?? '');
+
+  useEffect(() => {
+    if (app?.name && canEdit) {
+      fetchRecommendation('');
+    }
+  }, [app?.name, canEdit, fetchRecommendation]);
+
+  const onAnalyzeUsage = async () => {
+    const result = await analyzeUsageAsync();
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(t('Usage analysis completed.'));
+    if (canEdit) {
+      await fetchRecommendation('');
+    }
+  };
 
   useEffect(() => {
     return subscribe((message) => {
@@ -265,11 +293,38 @@ const Application = () => {
           <ApplicationContextMenu
             onDeleteApplication={onDeleteApplication}
             onDeployApplication={onDeployApplication}
+            onAnalyzeUsage={onAnalyzeUsage}
+            canManage={canManage}
             name={app?.name ?? ''}
           />
         </div>
       </div>
       <Separator className="my-2" />
+      {app && canEdit && recommendation?.hasRecommendation && recommendation.recommendedSize && (
+        <div className="p-2 pt-0">
+          <Alert className="bg-blue-50 text-blue-700 border-blue-600">
+            <Lightbulb className="size-4" />
+            <AlertTitle>{t('Size recommendation')}</AlertTitle>
+            <AlertDescription className="text-blue-700 flex flex-col gap-2 items-start">
+              <span>
+                {recommendation.direction === 'upsize'
+                  ? t('Recent usage exceeds the current application size.')
+                  : recommendation.direction === 'downsize'
+                    ? t('This application can run on a smaller size based on recent usage.')
+                    : t('A different size fits this application better based on recent usage.')}
+              </span>
+              <span className="text-sm">
+                {t('Recommended size')}: <strong>{recommendation.recommendedSize.hint}</strong>
+                {`  ·  ${t('CPU')} ${recommendation.cpuAvg.toFixed(2)} / ${recommendation.cpuMax.toFixed(2)} ${t('cores (avg / max)')}`}
+                {`  ·  ${t('Memory')} ${formatBytes(recommendation.memoryAvg)} / ${formatBytes(recommendation.memoryMax)} ${t('(avg / max)')}`}
+              </span>
+              <Button variant="outline" size="sm" onClick={() => setActiveTab('settings')}>
+                <Cog className="size-3" /> {t('Review size in settings')}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
       {app && deployedAt && deployedAt < app.modifiedAt && (
         <div className="p-2 pt-0">
           <Alert className="bg-yellow-50 text-yellow-700 border-yellow-600">
@@ -316,7 +371,7 @@ const Application = () => {
         </div>
       )}
       <div className="flex flex-col gap-4 p-4 pt-0 min-h-0 w-full h-full">
-        <Tabs defaultValue="events" className="flex flex-col min-h-0 w-full h-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col min-h-0 w-full h-full">
           <TabsList>
             <TabsTrigger value="events">
               <div className="flex flex-row items-center gap-2 px-2">

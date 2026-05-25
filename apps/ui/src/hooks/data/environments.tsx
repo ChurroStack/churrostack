@@ -1,5 +1,6 @@
 import { useDelete, useGet, usePatch, usePost, type QueryResult, type UseGetResult } from './core';
 import type { MemberSummary } from './identities';
+import type { AnalyzeUsageResult, ApplicationSize, SizeRecommendationDirection } from './applications';
 
 export interface EnvironmentSummary {
   name: string;
@@ -182,6 +183,61 @@ export function useRotateEnvironmentKeys(environmentName?: string) {
     postAsync: jsonPostAsync,
     reset
   };
+}
+
+export interface EnvironmentUsageItem {
+  applicationName: string;
+  currentSize?: ApplicationSize;
+  recommendedSize?: ApplicationSize;
+  cpuAvg: number;
+  cpuMax: number;
+  memoryAvg: number;
+  memoryMax: number;
+  sampleCount: number;
+  windowDays: number;
+  computedAt?: string;
+  hasRecommendation: boolean;
+  direction: SizeRecommendationDirection;
+}
+
+export function useGetEnvironmentUsage(environmentName?: string): UseGetResult<EnvironmentUsageItem[]> {
+  const { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset } = useGet<EnvironmentUsageItem[]>(
+    environmentName ? `/api/environments/${environmentName.replace(/^\/+/, '')}/usage` : `/api/environments`
+  );
+  return { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset };
+}
+
+export function useAnalyzeEnvironmentUsage(environmentName: string) {
+  const { isFetching, isSuccess, statusCode, isError, error, data, postAsync, reset } = usePost<AnalyzeUsageResult>(
+    `/api/environments/${environmentName}/analyze-usage`,
+    'application/json'
+  );
+  return { isFetching, isSuccess, statusCode, isError, error, data, postAsync, reset };
+}
+
+export interface ResourceTotal {
+  used: number;
+  requested: number;
+  total?: number;
+}
+
+export interface EnvironmentTotals {
+  cpu: ResourceTotal;
+  memory: ResourceTotal;
+  gpu: ResourceTotal;
+  storage: ResourceTotal;
+}
+
+export function useGetEnvironmentTotals(environmentName?: string): UseGetResult<EnvironmentTotals> {
+  const path = environmentName
+    ? `/api/environments/${environmentName.replace(/^\/+/, '')}/totals`
+    : `/api/environments/__unset__/totals`;
+  const { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset } =
+    useGet<EnvironmentTotals>(path);
+  const safeFetchAsync = environmentName
+    ? fetchAsync
+    : async () => ({ data: undefined, error: undefined });
+  return { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync: safeFetchAsync, reset };
 }
 
 export function useEnvironmentTest(environmentName?: string) {

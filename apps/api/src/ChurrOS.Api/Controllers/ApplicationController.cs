@@ -164,6 +164,29 @@ namespace ChurrOS.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("{name}/size-recommendation")]
+        [Produces(MediaTypeNames.Application.Json)]
+        [ProducesResponseType(typeof(ApplicationSizeRecommendationItem), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetApplicationSizeRecommendation(string name, CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(new GetApplicationSizeRecommendation(name), cancellationToken);
+            return Ok(result);
+        }
+
+        [HttpPost("{name}/analyze-usage")]
+        [Consumes(MediaTypeNames.Application.Json)]
+        [Produces(MediaTypeNames.Application.Json)]
+        [ProducesResponseType(typeof(AnalyzeUsageResultItem), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> AnalyzeApplicationUsage(string name, CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(new AnalyzeApplicationUsage(applicationName: name), cancellationToken);
+            return Ok(result);
+        }
+
         [HttpGet("{name}/traces")]
         [Consumes(MediaTypeNames.Application.Json)]
         [Produces(MediaTypeNames.Application.Json)]

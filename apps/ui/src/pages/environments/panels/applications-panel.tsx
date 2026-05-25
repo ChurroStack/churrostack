@@ -27,51 +27,79 @@ function EnvironmentsApplicationsPanel({ environmentName }: { environmentName: s
           lg:grid-cols-3
           xl:grid-cols-4
           gap-4">
-          {apps.items.map((application) => (
-            <div
-              className="flex flex-col bg-white border shadow-sm rounded-md dark:bg-gray-800 dark:border-gray-700 w-full cursor-pointer min-w-60"
-              key={application.name}>
-              <Link
-                to={`/applications/${application.name}`}
-                key={application.name}
-                className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex flex-col items-start gap-2 border-b p-4 text-sm leading-tight last:border-b-0">
-                <div className="flex w-full justify-between items-center">
-                  <span className="font-medium flex flex-row items-center gap-2 cursor-pointer">
-                    <AppWindow size={16} />{' '}
-                    <span className="w-min-0 break-all max-w-55 truncate cursor-pointer">{application.name}</span>
-                  </span>
-                </div>
-                <div className="flex flex-row gap-4 justify-start w-full items-center text-muted-foreground text-xs">
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <div className="flex flex-row gap-1">
-                        <Cpu className="size-4" />{' '}
-                        {application.metrics?.cpu_usage && application.metrics?.cpu_usage > 0
-                          ? formatPercent(application.metrics?.cpu_usage ?? 0)
-                          : 0}
-                        %
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>{t('CPU Usage (%)')}</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <div className="flex flex-row gap-1">
-                        <MemoryStick className="size-4 rotate-135" />{' '}
-                        {formatBytes(parseFloat(`${application.metrics?.memory_usage ?? '0'}`)) ?? '-'}
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>{t('Memory Usage (Bytes)')}</TooltipContent>
-                  </Tooltip>
-                  <AppStatus status={getApplicationStatus(application.provisionStatus, application.executionStatus)} />
-                </div>
-                <div className="text-xs break-all">
-                  <span>{formatDistanceToNow(application.createdAt)}</span> {t('by')}{' '}
-                  <span>{application.createdBy?.name}</span>
-                </div>
-              </Link>
-            </div>
-          ))}
+          {apps.items.map((application) => {
+            const cpuPct = application.metrics?.cpu_usage_pct;
+            const memPct = application.metrics?.memory_usage_pct;
+            const cpuLimit = application.metrics?.cpu_limit;
+            const memLimit = application.metrics?.memory_limit;
+            const peakPct = Math.max(cpuPct ?? 0, memPct ?? 0);
+            const cpuOfLimit =
+              cpuLimit !== undefined
+                ? cpuLimit < 1
+                  ? `${Math.round(cpuLimit * 1000)}m`
+                  : Number.isInteger(cpuLimit)
+                    ? `${cpuLimit} ${cpuLimit === 1 ? t('core') : t('cores')}`
+                    : `${cpuLimit.toFixed(2)} ${t('cores')}`
+                : t('limit');
+            const memOfLimit = memLimit !== undefined ? formatBytes(memLimit) : t('limit');
+            const cardClass =
+              peakPct >= 0.9
+                ? 'bg-red-50 border-red-500 dark:bg-red-950/40 dark:border-red-500'
+                : peakPct >= 0.7
+                  ? 'bg-orange-50 border-orange-500 dark:bg-orange-950/40 dark:border-orange-500'
+                  : 'bg-white border dark:bg-gray-800 dark:border-gray-700';
+            return (
+              <div
+                className={`flex flex-col shadow-sm rounded-md w-full cursor-pointer min-w-60 border ${cardClass}`}
+                key={application.name}>
+                <Link
+                  to={`/applications/${application.name}`}
+                  key={application.name}
+                  className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex flex-col items-start gap-2 border-b p-4 text-sm leading-tight last:border-b-0">
+                  <div className="flex w-full justify-between items-center">
+                    <span className="font-medium flex flex-row items-center gap-2 cursor-pointer">
+                      <AppWindow size={16} />{' '}
+                      <span className="w-min-0 break-all max-w-55 truncate cursor-pointer">{application.name}</span>
+                    </span>
+                  </div>
+                  <div className="flex flex-row gap-4 justify-start w-full items-center text-muted-foreground text-xs">
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <div className="flex flex-row gap-1">
+                          <Cpu className="size-4" /> {cpuPct !== undefined ? `${formatPercent(cpuPct)}%` : '-'}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {cpuPct !== undefined
+                          ? `${t('CPU usage')}: ${formatPercent(cpuPct)}% ${t('of')} ${cpuOfLimit}`
+                          : t('CPU usage')}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <div className="flex flex-row gap-1">
+                          <MemoryStick className="size-4 rotate-135" />{' '}
+                          {formatBytes(parseFloat(`${application.metrics?.memory_usage ?? '0'}`)) ?? '-'}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {memPct !== undefined
+                          ? `${t('Memory usage')}: ${formatPercent(memPct)}% ${t('of')} ${memOfLimit}`
+                          : t('Memory usage (bytes)')}
+                      </TooltipContent>
+                    </Tooltip>
+                    <AppStatus
+                      status={getApplicationStatus(application.provisionStatus, application.executionStatus)}
+                    />
+                  </div>
+                  <div className="text-xs break-all">
+                    <span>{formatDistanceToNow(application.createdAt)}</span> {t('by')}{' '}
+                    <span>{application.createdBy?.name}</span>
+                  </div>
+                </Link>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

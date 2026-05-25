@@ -506,6 +506,16 @@ namespace ChurrOS.Api
                     options.UseProperties = true;
                     options.UseSystemTextJsonSerializer();
                 });
+
+                // Nightly Application Size recommendation analysis. Fires at 02:00 UTC
+                // every day for every tenant; the timezone is pinned to UTC so the
+                // schedule is independent of the container's local time.
+                var analyzeUsageJobKey = new JobKey("analyze-usage-job");
+                q.AddJob<AnalyzeUsageJob>(opts => opts.WithIdentity(analyzeUsageJobKey).StoreDurably());
+                q.AddTrigger(opts => opts
+                    .ForJob(analyzeUsageJobKey)
+                    .WithIdentity("analyze-usage-trigger")
+                    .WithCronSchedule("0 0 2 * * ?", x => x.InTimeZone(TimeZoneInfo.Utc)));
             });
 
             builder.Services.AddQuartzServer(options =>
