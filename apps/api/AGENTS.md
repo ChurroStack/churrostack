@@ -12,6 +12,12 @@ Before touching resource/quota code paths, read the canonical vocabulary in
 is enforced (`EnsureEnvironmentRunningQuota` + per-env Redis lock from
 `StartApplicationHandler` / `UpdateApplicationHandler`).
 
+Before touching the `/share/*` YARP pipeline or `Start`/`Stop` handlers, read
+[`docs/concepts/auto-start-stop.md`](../../docs/concepts/auto-start-stop.md) —
+covers the Auto-Start hold path, single-flight `SETNX`, the route cache
+contract, Auto-Stop idle detection (combined HTTP-request + CPU signal), and
+the cooldown semantics.
+
 ## Overview
 
 `apps/api` is the ChurroStack backend: a C# .NET 10 ASP.NET Core service named

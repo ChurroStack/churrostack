@@ -7,6 +7,8 @@ namespace ChurrOS.Api.Commands.Applications
         public string Name { get; private set; }
         public string? DeploymentName { get; private set; }
 
+        public bool BypassAcl { get; init; }
+
         public StartApplication(string name, string? deploymentName = null)
         {
             Name = name;

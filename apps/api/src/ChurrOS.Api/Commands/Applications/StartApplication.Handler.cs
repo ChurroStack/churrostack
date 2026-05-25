@@ -3,6 +3,7 @@ using ChurrOS.Api.Commands.Identity;
 using ChurrOS.Api.Data;
 using ChurrOS.Api.Models.Dtos.Identity;
 using ChurrOS.Api.Services;
+using ChurrOS.Api.Services.AutoStart;
 using ChurrOS.Api.Services.Security;
 using ChurrOS.Api.Utils.Exceptions;
 using DispatchR;
@@ -19,6 +20,7 @@ namespace ChurrOS.Api.Commands.Applications
         private readonly QuotaService _quotaService;
         private readonly ILockService _lockService;
         private readonly ITenantResolver _tenantResolver;
+        private readonly AutoStartCache _autoStartCache;
 
         public StartApplicationHandler(
             IMediator mediator,
@@ -26,7 +28,8 @@ namespace ChurrOS.Api.Commands.Applications
             RunnerService runnerService,
             QuotaService quotaService,
             ILockService lockService,
-            ITenantResolver tenantResolver)
+            ITenantResolver tenantResolver,
+            AutoStartCache autoStartCache)
         {
             _mediator = mediator;
             _context = context;
@@ -34,6 +37,7 @@ namespace ChurrOS.Api.Commands.Applications
             _quotaService = quotaService;
             _lockService = lockService;
             _tenantResolver = tenantResolver;
+            _autoStartCache = autoStartCache;
         }
 
         public async Task Handle(StartApplication request, CancellationToken cancellationToken)
@@ -56,12 +60,15 @@ namespace ChurrOS.Api.Commands.Applications
                 throw new NotFoundException($"Application with name '{request.Name}' is not deployed yet.");
             }
 
-            var isAdmin = await _mediator.Send(new HasRole(IdentityRole.Administrator, _context.IdentityId), cancellationToken);
-            if (!isAdmin)
+            if (!request.BypassAcl)
             {
-                var identityAcls = await _mediator.Send(new GetIdentityAcls(_context.IdentityId, app.Mode == Models.Dtos.Application.ApplicationMode.Workspace ? Permission.Read : Permission.Write), cancellationToken);
-                if (!identityAcls.ContainsKey(app.AclId) && !identityAcls.ContainsKey(app.Environment!.AclId))
-                    throw new UnauthorizedAccessException("You do not have permission to start this application.");
+                var isAdmin = await _mediator.Send(new HasRole(IdentityRole.Administrator, _context.IdentityId), cancellationToken);
+                if (!isAdmin)
+                {
+                    var identityAcls = await _mediator.Send(new GetIdentityAcls(_context.IdentityId, app.Mode == Models.Dtos.Application.ApplicationMode.Workspace ? Permission.Read : Permission.Write), cancellationToken);
+                    if (!identityAcls.ContainsKey(app.AclId) && !identityAcls.ContainsKey(app.Environment!.AclId))
+                        throw new UnauthorizedAccessException("You do not have permission to start this application.");
+                }
             }
 
             var parts = app.Environment!.EncryptionKey.Split(':');
@@ -89,6 +96,17 @@ namespace ChurrOS.Api.Commands.Applications
             {
                 var deploymentName = app.Mode == Models.Dtos.Application.ApplicationMode.Workspace ? $"{app.Name}-{_context.IdentityId}" : app.Name;
                 await client.StartAsync(deploymentName, cancellationToken);
+            }
+
+            await _autoStartCache.InvalidateRouteAsync(app.Name);
+
+            // A manual start (i.e. an authenticated user clicked Start) overrides any
+            // previous auto-stop cooldown, otherwise share requests in the next 60 s
+            // would still see the cooldown key and return 503 after the user explicitly
+            // re-enabled the app. System-initiated starts (BypassAcl) leave it alone.
+            if (!request.BypassAcl)
+            {
+                await _autoStartCache.ClearCooldownAsync(app.Id);
             }
         }
     }
