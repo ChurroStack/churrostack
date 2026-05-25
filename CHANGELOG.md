@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/ChurroStack/churrostack/compare/v1.0.0...v1.0.1) (2026-05-25)
+
+
+### Bug Fixes
+
+* unblock API boot — install GSSAPI lib and raise migration timeout ([#8](https://github.com/ChurroStack/churrostack/issues/8)) ([d495f57](https://github.com/ChurroStack/churrostack/commit/d495f578c82beec96afdc6e390a460c9a6789ec8))
+
 ## 1.0.0 (2026-05-25)
 
 
