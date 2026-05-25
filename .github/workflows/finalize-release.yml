@@ -1,0 +1,79 @@
+name: Finalize release PR
+
+# Workaround for release-please-action v4: when its createReleases()
+# step skips a merged release PR (e.g. due to title-component mismatch
+# in single-package setups), the release never gets a tag and the
+# publish job never fires. This workflow detects the merge of any PR
+# carrying the `autorelease: pending` label and does what release-please
+# was supposed to do: extract the version from the PR body, create the
+# tag + GitHub Release, re-label the PR, and dispatch the publish
+# workflow.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  finalize:
+    if: >-
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract version from PR body
+        id: ver
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          version="$(printf '%s' "$BODY" | grep -oE '<summary>[0-9]+\.[0-9]+\.[0-9]+</summary>' | head -1 | sed -E 's@<summary>([0-9.]+)</summary>@\1@')"
+          if [ -z "$version" ]; then
+            echo "could not extract version from PR body" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          gh api "repos/${{ github.repository }}/git/refs" \
+            -f "ref=refs/tags/$TAG" \
+            -f "sha=$SHA"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Strip the release-please "I have created a release" preamble and
+          # footer so the GitHub Release body is just the changelog block.
+          notes="$(printf '%s' "$BODY" | awk '/<details>/{flag=1; next} /<\/details>/{flag=0} flag')"
+          gh release create "$TAG" --target "$SHA" --title "$TAG" --notes "$notes"
+
+      - name: Re-label PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr edit "$PR" --remove-label "autorelease: pending" --add-label "autorelease: tagged"
+
+      - name: Dispatch publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          gh workflow run release.yml --ref main -f tag="$TAG"
