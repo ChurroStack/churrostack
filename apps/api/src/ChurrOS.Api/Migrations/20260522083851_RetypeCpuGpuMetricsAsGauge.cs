@@ -11,30 +11,19 @@ namespace ChurrOS.Api.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             // Data fix for the metrics-calculation postmortem (2026-05-22).
-            // cpu_usage / gpu_usage are instantaneous runner readings (gauges), but earlier
-            // code ingested them as counters. Metric.Type is persisted per series, so existing
-            // rows must be retyped or GetMetrics keeps applying Rate() to gauge samples.
-            // MetricType enum: Counter = 0, Gauge = 1.
-            migrationBuilder.Sql(
-                "UPDATE cs.metric SET type = 1 " +
-                "WHERE labels->>'metric' IN ('cpu_usage', 'gpu_usage') AND type = 0;");
-
-            // Historical samples for these series hold ACCUMULATED counter values; read as a
-            // gauge they render a monotonically rising ramp. Purge them so the charts show
-            // only correct instantaneous samples collected after this migration.
-            migrationBuilder.Sql(
-                "DELETE FROM cs.metric_value WHERE metric_id IN (" +
-                "SELECT metric_id FROM cs.metric WHERE labels->>'metric' IN ('cpu_usage', 'gpu_usage'));");
+            // cpu_usage / gpu_usage were ingested as counters but are gauges, and the
+            // persisted Metric.Type plus the historical samples were both wrong. A
+            // scoped UPDATE + DELETE on cs.metric_value (a Timescale hypertable) takes
+            // long enough on real data to block boot, so wipe both tables wholesale —
+            // ScrapeMetricsJob recreates the series with the correct type on the next
+            // scrape cycle.
+            migrationBuilder.Sql("TRUNCATE TABLE cs.metric, cs.metric_value RESTART IDENTITY;");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Best-effort revert of the type change. The purged metric_value history
-            // cannot be restored.
-            migrationBuilder.Sql(
-                "UPDATE cs.metric SET type = 0 " +
-                "WHERE labels->>'metric' IN ('cpu_usage', 'gpu_usage') AND type = 1;");
+            // TRUNCATE is unrecoverable; nothing to revert.
         }
     }
 }
