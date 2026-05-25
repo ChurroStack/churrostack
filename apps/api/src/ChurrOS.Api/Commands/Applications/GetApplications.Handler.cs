@@ -4,6 +4,7 @@ using ChurrOS.Api.Models.Dtos;
 using ChurrOS.Api.Models.Dtos.Application;
 using ChurrOS.Api.Models.Dtos.Identity;
 using ChurrOS.Api.Services;
+using ChurrOS.Api.Utils;
 using DispatchR;
 using DispatchR.Abstractions.Send;
 using MapsterMapper;
@@ -75,7 +76,7 @@ namespace ChurrOS.Api.Commands.Applications
 
             query = request.Query?.ApplyPaginationTo(query) ?? query;
 
-            var items = query.Select(o => new { o.Id, o.Name, o.Template, o.Mode, o.Deployments, o.CreatedAt, o.CreatedBy, o.ModifiedAt, o.ModifiedBy });
+            var items = query.Select(o => new { o.Id, o.Name, o.Template, o.Mode, o.Deployments, o.Size, o.CreatedAt, o.CreatedBy, o.ModifiedAt, o.ModifiedBy });
 
             var result = new List<ApplicationSummary>();
             var db = _connectionMultiplexer.GetDatabase();
@@ -140,6 +141,44 @@ namespace ChurrOS.Api.Commands.Applications
                         case "storage":
                             metrics.TryAdd("storage_usage", (double)value.Value);
                             break;
+                    }
+                }
+                // Usage-as-ratio fields (0..N, where 1 = 100% of the configured limit) and the parsed
+                // limit itself (cores / bytes). Both are emitted whenever the size string is parsable —
+                // the UI uses pct for thresholds and the limit to label tooltips ("99% of 256 MB").
+                if (app.Size is not null)
+                {
+                    if (!string.IsNullOrWhiteSpace(app.Size.Cpu)
+                        && app.Size.Cpu.TryParseCpuToCores(out var cpuLimit)
+                        && cpuLimit > 0)
+                    {
+                        metrics["cpu_limit"] = cpuLimit;
+                        if (metrics.TryGetValue("cpu_usage", out var cpuUsage))
+                            metrics["cpu_usage_pct"] = cpuUsage / cpuLimit;
+                    }
+                    if (!string.IsNullOrWhiteSpace(app.Size.Memory)
+                        && app.Size.Memory.TryParseMemoryToBytes(out var memLimit)
+                        && memLimit > 0)
+                    {
+                        metrics["memory_limit"] = memLimit;
+                        if (metrics.TryGetValue("memory_usage", out var memUsage))
+                            metrics["memory_usage_pct"] = memUsage / memLimit;
+                    }
+                    if (!string.IsNullOrWhiteSpace(app.Size.Gpu)
+                        && app.Size.Gpu.TryParseCpuToCores(out var gpuLimit)
+                        && gpuLimit > 0)
+                    {
+                        metrics["gpu_limit"] = gpuLimit;
+                        if (metrics.TryGetValue("gpu_usage", out var gpuUsage))
+                            metrics["gpu_usage_pct"] = gpuUsage / gpuLimit;
+                    }
+                    if (!string.IsNullOrWhiteSpace(app.Size.Storage)
+                        && app.Size.Storage.TryParseMemoryToBytes(out var storageLimit)
+                        && storageLimit > 0)
+                    {
+                        metrics["storage_limit"] = storageLimit;
+                        if (metrics.TryGetValue("storage_usage", out var storageUsage))
+                            metrics["storage_usage_pct"] = storageUsage / storageLimit;
                     }
                 }
                 summary.Metrics = metrics;

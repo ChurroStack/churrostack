@@ -215,6 +215,31 @@ export function useAnalyzeEnvironmentUsage(environmentName: string) {
   return { isFetching, isSuccess, statusCode, isError, error, data, postAsync, reset };
 }
 
+export interface ResourceTotal {
+  used: number;
+  requested: number;
+  total?: number;
+}
+
+export interface EnvironmentTotals {
+  cpu: ResourceTotal;
+  memory: ResourceTotal;
+  gpu: ResourceTotal;
+  storage: ResourceTotal;
+}
+
+export function useGetEnvironmentTotals(environmentName?: string): UseGetResult<EnvironmentTotals> {
+  const path = environmentName
+    ? `/api/environments/${environmentName.replace(/^\/+/, '')}/totals`
+    : `/api/environments/__unset__/totals`;
+  const { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset } =
+    useGet<EnvironmentTotals>(path);
+  const safeFetchAsync = environmentName
+    ? fetchAsync
+    : async () => ({ data: undefined, error: undefined });
+  return { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync: safeFetchAsync, reset };
+}
+
 export function useEnvironmentTest(environmentName?: string) {
   const { isFetching, isSuccess, statusCode, isError, error, data, postAsync, reset } = usePost<EnvironmentKeysItem>(
     `/api/environments/${environmentName}/connect`,

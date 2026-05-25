@@ -112,6 +112,17 @@ namespace ChurrOS.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("{name}/totals")]
+        [Produces(MediaTypeNames.Application.Json)]
+        [ProducesResponseType(typeof(EnvironmentTotalsItem), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetEnvironmentTotals(string name, CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(new GetEnvironmentTotals(name), cancellationToken);
+            return Ok(result);
+        }
+
         [HttpPost("{name}/analyze-usage")]
         [Consumes(MediaTypeNames.Application.Json)]
         [Produces(MediaTypeNames.Application.Json)]

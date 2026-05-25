@@ -11,7 +11,8 @@ import {
   useGetEnvironment,
   useEnvironmentTest,
   useDeleteEnvironment,
-  useAnalyzeEnvironmentUsage
+  useAnalyzeEnvironmentUsage,
+  useGetEnvironmentTotals
 } from '@/hooks/data/environments';
 import { useMyPermission } from '@/hooks/data/identities';
 import {
@@ -50,6 +51,7 @@ import EnvironmentContextMenu from './menus/environment-menu';
 import { useEnvironmentService } from '@/services/environment-services';
 import EnvironmentsApplicationsPanel from './panels/applications-panel';
 import EnvironmentUsagePanel from './panels/usage-panel';
+import { EnvironmentTotalsBar } from './environment-totals-bar';
 import AccessPanel from './panels/members-panel';
 import { toast } from 'sonner';
 
@@ -81,6 +83,7 @@ const Environment = () => {
   const { error: deleteError, deleteAsync } = useDeleteEnvironment();
   const { canManage } = useMyPermission(environment?.members);
   const { postAsync: analyzeUsageAsync } = useAnalyzeEnvironmentUsage(environment?.name ?? id ?? '');
+  const { data: totals, fetchAsync: fetchTotalsAsync } = useGetEnvironmentTotals(environment?.name ?? id);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: standardSchemaResolver(formSchema),
     defaultValues: {},
@@ -114,6 +117,15 @@ const Environment = () => {
       rotateEnvironmentKeysAsync({});
     }
   }, [environment, defaultView, environment?.provisionStatus]);
+
+  // Refresh the header usage bars when the environment loads and then every 60s
+  // (matches the cache cadence ScrapeMetricsJob writes into Redis).
+  useEffect(() => {
+    if (!environment?.name || environment.provisionStatus !== 'provisioned') return;
+    fetchTotalsAsync('');
+    const handle = window.setInterval(() => fetchTotalsAsync(''), 60_000);
+    return () => window.clearInterval(handle);
+  }, [environment?.name, environment?.provisionStatus, fetchTotalsAsync]);
 
   const testEnvironment = async () => {
     await testAsync({});
@@ -269,21 +281,13 @@ const Environment = () => {
             </TabsList>
             {environment.provisionStatus === 'provisioned' && (
               <div className="flex flex-row gap-4 items-center">
-                {environment.definition?.limits?.cpu && (
-                  <div className="flex flex-row gap-1 items-center">
-                    <div className="text-sm text-muted-foreground">{t('CPU')}</div>
-                    <div className="font-mono text-sm text-gray-700 dark:text-gray-300 font-bold">
-                      {environment.definition?.limits?.cpu}
-                    </div>
-                  </div>
-                )}
-                {environment.definition?.limits?.memory && (
-                  <div className="flex flex-row gap-1 items-center">
-                    <div className="text-sm text-muted-foreground">{t('MEM')}</div>
-                    <div className="font-mono text-sm text-gray-700 dark:text-gray-300 font-bold">
-                      {environment.definition?.limits?.memory}
-                    </div>
-                  </div>
+                {(environment.definition?.limits?.cpu || environment.definition?.limits?.memory) && (
+                  <EnvironmentTotalsBar
+                    cpu={totals?.cpu}
+                    memory={totals?.memory}
+                    cpuTotalDisplay={environment.definition?.limits?.cpu ?? '∞'}
+                    memoryTotalDisplay={environment.definition?.limits?.memory ?? '∞'}
+                  />
                 )}
                 <Button
                   className="ml-4"

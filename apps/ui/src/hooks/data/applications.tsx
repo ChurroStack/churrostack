@@ -12,6 +12,14 @@ export interface ApplicationSummary {
   metrics?: {
     cpu_usage?: number;
     memory_usage?: number;
+    cpu_usage_pct?: number;
+    memory_usage_pct?: number;
+    gpu_usage_pct?: number;
+    storage_usage_pct?: number;
+    cpu_limit?: number;
+    memory_limit?: number;
+    gpu_limit?: number;
+    storage_limit?: number;
   };
   createdAt: string;
   createdBy: {
