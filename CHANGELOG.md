@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.0](https://github.com/ChurroStack/churrostack/compare/v1.0.4...v1.1.0) (2026-05-26)
+
+
+### Features
+
+* **applications:** filter sidebar by environment and creator ([#17](https://github.com/ChurroStack/churrostack/issues/17)) ([0ba9a82](https://github.com/ChurroStack/churrostack/commit/0ba9a82dd86515de5298f7d7580f60052189584a))
+* enrich Environment Usage tab with status, P95, sorting, totals ([#16](https://github.com/ChurroStack/churrostack/issues/16)) ([543e2f0](https://github.com/ChurroStack/churrostack/commit/543e2f076c5407b56b3f4463645e2fda62cf9343))
+* **llm:** add USD spend tracking and filters to monitoring ([#18](https://github.com/ChurroStack/churrostack/issues/18)) ([94576b2](https://github.com/ChurroStack/churrostack/commit/94576b271b974be74525d6ff1986ccf027e8651f))
+
 ## [1.0.4](https://github.com/ChurroStack/churrostack/compare/v1.0.3...v1.0.4) (2026-05-25)
 
 
