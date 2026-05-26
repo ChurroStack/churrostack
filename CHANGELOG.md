@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/ChurroStack/churrostack/compare/v1.2.0...v1.2.1) (2026-05-26)
+
+
+### Bug Fixes
+
+* **ci:** include component+version in release-please title pattern ([#24](https://github.com/ChurroStack/churrostack/issues/24)) ([13b5a47](https://github.com/ChurroStack/churrostack/commit/13b5a47d2f9c9219098771d3af736113f92194da))
+
 ## [1.2.0](https://github.com/ChurroStack/churrostack/compare/v1.1.0...v1.2.0) (2026-05-26)
 
 
