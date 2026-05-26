@@ -118,6 +118,20 @@ namespace ChurrOS.Api.Controllers
             return Ok(result);
         }
 
+        // Order = -1 to make the literal "metrics/..." path win against "{llmId}/metrics/..." when
+        // the binder might otherwise consider "metrics" as a candidate for an `long llmId` (it can't,
+        // but explicit precedence avoids any future ambiguity if the param type changes).
+        [HttpGet("metrics/{metricName}", Order = -1)]
+        [Consumes(MediaTypeNames.Application.Json)]
+        [Produces(MediaTypeNames.Application.Json)]
+        [ProducesResponseType(typeof(MetricValuesItem), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GetAggregatedMetrics(string metricName, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, [FromQuery] string? tz, [FromQuery] string? identityName, [FromQuery] string? userId, [FromQuery] string? model, CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(new GetAggregatedLlmMetrics(metricName, from, to, tz, identityName, userId, model), cancellationToken);
+            return Ok(result);
+        }
+
         [HttpGet("{llmId}/usage/{groupBy}")]
         [Consumes(MediaTypeNames.Application.Json)]
         [Produces(MediaTypeNames.Application.Json)]
@@ -127,6 +141,17 @@ namespace ChurrOS.Api.Controllers
         public async Task<IActionResult> GetLlmUsage(long llmId, string groupBy, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, [FromQuery] string orderBy = "completions", [FromQuery] string orderDirection = "desc", [FromQuery] string? identityName = null, [FromQuery] string? userId = null, [FromQuery] string? model = null, CancellationToken cancellationToken = default)
         {
             var result = await _mediator.Send(new GetLlmUsage(llmId, groupBy, orderBy, orderDirection, from, to, identityName, userId, model), cancellationToken);
+            return Ok(result);
+        }
+
+        [HttpGet("usage/{groupBy}", Order = -1)]
+        [Consumes(MediaTypeNames.Application.Json)]
+        [Produces(MediaTypeNames.Application.Json)]
+        [ProducesResponseType(typeof(QueryResult<LlmUsageItem>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GetAggregatedUsage(string groupBy, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, [FromQuery] string orderBy = "completions", [FromQuery] string orderDirection = "desc", [FromQuery] string? identityName = null, [FromQuery] string? userId = null, [FromQuery] string? model = null, CancellationToken cancellationToken = default)
+        {
+            var result = await _mediator.Send(new GetAggregatedLlmUsage(groupBy, orderBy, orderDirection, from, to, identityName, userId, model), cancellationToken);
             return Ok(result);
         }
     }

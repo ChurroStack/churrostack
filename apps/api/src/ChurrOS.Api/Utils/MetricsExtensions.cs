@@ -30,7 +30,12 @@ namespace ChurrOS.Api.Utils
 
                         var delta = curr.Value - prev.Value;
                         // Negative delta => counter reset; the increase since the reset is the current value.
-                        var increase = delta >= 0 ? delta : curr.Value;
+                        var raw = delta >= 0 ? delta : curr.Value;
+                        // Counters are monotonically non-decreasing; treat any negative residue
+                        // (floating-point drift, malformed sample, or a counter reset to a negative
+                        // value) as 0 so it cannot propagate into downstream sums and surface as a
+                        // negative spend in the UI.
+                        var increase = raw >= 0 ? raw : 0d;
 
                         var ts = curr.Timestamp.UtcDateTime;
                         var bucket = new DateTimeOffset(ts.Year, ts.Month, ts.Day, ts.Hour, ts.Minute, 0, TimeSpan.Zero);

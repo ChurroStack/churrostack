@@ -197,10 +197,12 @@ export function useDeleteLlm() {
   };
 }
 
-export function useGetLlmMetric(llmId: string, metricName: string): UseGetResult<MetricItem> {
-  const { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset } = useGet<MetricItem>(
-    `/api/llms/${llmId}/metrics/${metricName}`
-  );
+// llmId is optional: when omitted, the URL switches to the cross-LLM aggregated endpoint that
+// the API scopes to whatever LLMs the caller has Read access on. Keeping ID handling as string
+// avoids JS Number precision issues with IdGen snowflake longs.
+export function useGetLlmMetric(llmId: string | undefined, metricName: string): UseGetResult<MetricItem> {
+  const path = llmId ? `/api/llms/${llmId}/metrics/${metricName}` : `/api/llms/metrics/${metricName}`;
+  const { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset } = useGet<MetricItem>(path);
   return {
     isFetching,
     isSuccess,
@@ -213,10 +215,11 @@ export function useGetLlmMetric(llmId: string, metricName: string): UseGetResult
   };
 }
 
-export function useGetLlmUsage(llmId: string, groupBy: string): UseGetResult<QueryResult<LlmUsageSummaryItem>> {
+export function useGetLlmUsage(llmId: string | undefined, groupBy: string): UseGetResult<QueryResult<LlmUsageSummaryItem>> {
+  const path = llmId ? `/api/llms/${llmId}/usage/${groupBy}` : `/api/llms/usage/${groupBy}`;
   const { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset } = useGet<
     QueryResult<LlmUsageSummaryItem>
-  >(`/api/llms/${llmId}/usage/${groupBy}`);
+  >(path);
   return {
     isFetching,
     isSuccess,
