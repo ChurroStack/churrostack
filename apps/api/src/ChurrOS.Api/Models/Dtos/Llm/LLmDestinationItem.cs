@@ -19,7 +19,11 @@ namespace ChurrOS.Api.Models.Dtos.Llm
 
         public string? Patch { get; set; }
 
-        public LLmDestinationItem(LLmDestinationType type, string uri, string model, string? apiKey, IDictionary<string, string>? headers, string? patch)
+        public decimal? InputTokenPricePer1M { get; set; }
+
+        public decimal? OutputTokenPricePer1M { get; set; }
+
+        public LLmDestinationItem(LLmDestinationType type, string uri, string model, string? apiKey, IDictionary<string, string>? headers, string? patch, decimal? inputTokenPricePer1M = null, decimal? outputTokenPricePer1M = null)
         {
             Type = type;
             Uri = uri;
@@ -27,6 +31,8 @@ namespace ChurrOS.Api.Models.Dtos.Llm
             ApiKey = apiKey;
             Headers = headers;
             Patch = patch;
+            InputTokenPricePer1M = inputTokenPricePer1M;
+            OutputTokenPricePer1M = outputTokenPricePer1M;
         }
     }
 }

@@ -42,6 +42,9 @@ namespace ChurrOS.Api.Commands.Llm
                 { "llm_id", item.Id.ToString() },
                 { "metric", request.MetricName }
             };
+            if (!string.IsNullOrWhiteSpace(request.IdentityName)) filter["identity_name"] = request.IdentityName;
+            if (!string.IsNullOrWhiteSpace(request.UserId)) filter["x_user_id"] = request.UserId;
+            if (!string.IsNullOrWhiteSpace(request.Model)) filter["destination_model"] = request.Model;
 
             return await _mediator.Send(new GetMetrics(filter, request.From, request.To, request.Tz), cancellationToken);
         }

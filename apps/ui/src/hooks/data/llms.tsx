@@ -21,6 +21,9 @@ export interface LlmDestinationItem {
   uri: string;
   model: string;
   apiKey?: string;
+  patch?: string;
+  inputTokenPricePer1M?: number;
+  outputTokenPricePer1M?: number;
 }
 
 export interface LlmItem {
@@ -57,6 +60,9 @@ export interface LlmUsageSummaryItem {
   promptTokens: number;
   completionTokens: number;
   completions: number;
+  inputSpend: number;
+  outputSpend: number;
+  totalSpend: number;
 }
 
 export function useGetLlms(): UseGetResult<QueryResult<LlmSummary>> {

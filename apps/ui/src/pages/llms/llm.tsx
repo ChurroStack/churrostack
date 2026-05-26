@@ -90,7 +90,7 @@ const Llm = () => {
             <ConnectionPanel llm={llm} />
           </TabsContent>
           <TabsContent value="monitoring" className="flex flex-col min-h-0 w-full h-full">
-            <MonitorPanel llmId={llm?.id ?? ''} />
+            <MonitorPanel llm={llm} />
           </TabsContent>
           <TabsContent value="security" className="flex flex-col min-h-0 w-full h-full">
             <AccessPanel llm={llm} />

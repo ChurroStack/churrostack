@@ -1,5 +1,5 @@
 import { useSearchIdentities, type IdentityItem } from '@/hooks/data/identities';
-import { AlertCircle, AppWindow, User, Users } from 'lucide-react';
+import { AlertCircle, AppWindow, User, Users, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { AsyncSelect } from '@/components/async-select';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,8 @@ const IdentityPicker = ({
   onChange,
   autoSelect,
   readonly,
-  type
+  type,
+  clearable
 }: {
   className?: string;
   value?: string;
@@ -19,6 +20,7 @@ const IdentityPicker = ({
   autoSelect?: boolean;
   readonly?: boolean;
   type?: string;
+  clearable?: boolean;
 }) => {
   const { t } = useTranslation();
   const { fetchAsync, data, error } = useSearchIdentities();
@@ -27,6 +29,8 @@ const IdentityPicker = ({
 
   useEffect(() => {
     setSelectedUser(value ?? '');
+    // When value is cleared externally, return to the search input so the user can pick again.
+    if (!value) setEdit(true);
   }, [value]);
 
   useEffect(() => {
@@ -57,12 +61,26 @@ const IdentityPicker = ({
   if (!edit) {
     return (
       <div
-        className={cn('flex flex-row gap-2 items-center cursor-pointer border rounded-md px-2 pr-4', className)}
+        className={cn('flex flex-row gap-2 items-center cursor-pointer border rounded-md px-2 pr-2 h-9', className)}
         onClick={() => setEdit(true)}>
         {type == 'user' && <User className="size-4" />}
         {type == 'application' && <AppWindow className="size-4" />}
         {type == 'group' && <Users className="size-4" />}
-        {value}
+        <span className="flex-1 truncate">{value}</span>
+        {clearable && (
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground"
+            aria-label={t('Clear')}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedUser('');
+              setEdit(true);
+              onChange?.('');
+            }}>
+            <X className="size-4" />
+          </button>
+        )}
       </div>
     );
   }

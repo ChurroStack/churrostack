@@ -88,6 +88,9 @@ export function AsyncSelect<T>({
   useEffect(() => {
     setMounted(true);
     setSelectedValue(value);
+    if (!value) {
+      setSelectedOption(null);
+    }
   }, [value]);
 
   // Initialize selectedOption when options are loaded and value exists
