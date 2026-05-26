@@ -112,9 +112,9 @@ namespace ChurrOS.Api.Controllers
         [ProducesResponseType(typeof(MetricValuesItem), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetLlmMetrics(long llmId, string metricName, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, [FromQuery] string? tz, CancellationToken cancellationToken)
+        public async Task<IActionResult> GetLlmMetrics(long llmId, string metricName, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, [FromQuery] string? tz, [FromQuery] string? identityName, [FromQuery] string? userId, [FromQuery] string? model, CancellationToken cancellationToken)
         {
-            var result = await _mediator.Send(new GetLlmMetrics(llmId, metricName, from, to, tz), cancellationToken);
+            var result = await _mediator.Send(new GetLlmMetrics(llmId, metricName, from, to, tz, identityName, userId, model), cancellationToken);
             return Ok(result);
         }
 
@@ -124,9 +124,9 @@ namespace ChurrOS.Api.Controllers
         [ProducesResponseType(typeof(QueryResult<LlmUsageItem>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetLlmUsage(long llmId, string groupBy, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, [FromQuery] string orderBy = "completions", [FromQuery] string orderDirection = "desc", CancellationToken cancellationToken = default)
+        public async Task<IActionResult> GetLlmUsage(long llmId, string groupBy, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, [FromQuery] string orderBy = "completions", [FromQuery] string orderDirection = "desc", [FromQuery] string? identityName = null, [FromQuery] string? userId = null, [FromQuery] string? model = null, CancellationToken cancellationToken = default)
         {
-            var result = await _mediator.Send(new GetLlmUsage(llmId, groupBy, orderBy, orderDirection, from, to), cancellationToken);
+            var result = await _mediator.Send(new GetLlmUsage(llmId, groupBy, orderBy, orderDirection, from, to, identityName, userId, model), cancellationToken);
             return Ok(result);
         }
     }

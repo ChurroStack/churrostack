@@ -15,41 +15,96 @@ import {
   type SortingState,
   type VisibilityState
 } from '@tanstack/react-table';
-import { AlertCircle, RefreshCcw } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, RefreshCcw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-const columns: ColumnDef<LlmUsageSummaryItem>[] = [
+const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+const intFormatter = new Intl.NumberFormat('en-US');
+
+const SortableHeader = ({
+  column,
+  label
+}: {
+  column: { toggleSorting: (desc?: boolean) => void; getIsSorted: () => false | 'asc' | 'desc' };
+  label: string;
+}) => {
+  const sorted = column.getIsSorted();
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="-ml-2 h-8 px-2"
+      onClick={() => column.toggleSorting(sorted === 'asc')}>
+      {label}
+      {sorted === 'asc' ? (
+        <ArrowUp className="ml-1 size-3" />
+      ) : sorted === 'desc' ? (
+        <ArrowDown className="ml-1 size-3" />
+      ) : (
+        <ArrowUpDown className="ml-1 size-3 opacity-50" />
+      )}
+    </Button>
+  );
+};
+
+const buildColumns = (t: (k: string) => string): ColumnDef<LlmUsageSummaryItem>[] => [
   {
     accessorKey: 'name',
-    header: 'Name',
-    cell: ({ row }) => <div>{row.getValue('name')}</div>
+    header: ({ column }) => <SortableHeader column={column} label={t('Name')} />,
+    cell: ({ row }) => {
+      const name = row.getValue<string>('name');
+      return <div>{name && name.length > 0 ? name : <span className="text-muted-foreground italic">{t('(anonymous)')}</span>}</div>;
+    }
   },
   {
     accessorKey: 'completions',
-    header: 'Completions',
-    cell: ({ row }) => <div>{row.getValue('completions')}</div>
+    header: ({ column }) => <SortableHeader column={column} label={t('Completions')} />,
+    cell: ({ row }) => <div>{intFormatter.format(row.getValue<number>('completions'))}</div>
   },
   {
     accessorKey: 'promptTokens',
-    header: 'Prompt Tokens',
-    cell: ({ row }) => <div>{row.getValue('promptTokens')}</div>
+    header: ({ column }) => <SortableHeader column={column} label={t('Prompt Tokens')} />,
+    cell: ({ row }) => <div>{intFormatter.format(row.getValue<number>('promptTokens'))}</div>
   },
   {
     accessorKey: 'completionTokens',
-    header: 'Completion Tokens',
-    cell: ({ row }) => <div>{row.getValue('completionTokens')}</div>
+    header: ({ column }) => <SortableHeader column={column} label={t('Completion Tokens')} />,
+    cell: ({ row }) => <div>{intFormatter.format(row.getValue<number>('completionTokens'))}</div>
+  },
+  {
+    accessorKey: 'inputSpend',
+    header: ({ column }) => <SortableHeader column={column} label={t('Input Spend')} />,
+    cell: ({ row }) => <div>{usdFormatter.format(row.getValue<number>('inputSpend'))}</div>
+  },
+  {
+    accessorKey: 'outputSpend',
+    header: ({ column }) => <SortableHeader column={column} label={t('Output Spend')} />,
+    cell: ({ row }) => <div>{usdFormatter.format(row.getValue<number>('outputSpend'))}</div>
+  },
+  {
+    accessorKey: 'totalSpend',
+    header: ({ column }) => <SortableHeader column={column} label={t('Total Spend')} />,
+    cell: ({ row }) => <div className="font-medium">{usdFormatter.format(row.getValue<number>('totalSpend'))}</div>
   }
 ];
 
 const LlmUsage = ({
   llmId,
   fromDate,
-  toDate
+  toDate,
+  identityName,
+  userId,
+  model,
+  onData
 }: {
   llmId: string;
   fromDate: Date | undefined;
   toDate: Date | undefined;
+  identityName?: string;
+  userId?: string;
+  model?: string;
+  onData?: (rows: LlmUsageSummaryItem[]) => void;
 }) => {
   const {
     fetchAsync,
@@ -58,15 +113,13 @@ const LlmUsage = ({
     error: usageError
   } = useGetLlmUsage(llmId, 'identity_name');
   const { t } = useTranslation();
-  const [sorting, setSorting] = useState<SortingState>([
-    {
-      id: 'completions',
-      desc: true
-    }
-  ]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'totalSpend', desc: true }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState({});
+
+  const columns = useMemo(() => buildColumns(t), [t]);
+
   const table = useReactTable({
     data: usageData?.items ?? [],
     columns,
@@ -83,20 +136,28 @@ const LlmUsage = ({
       columnFilters,
       columnVisibility,
       rowSelection
-    },
-    manualPagination: true,
-    manualSorting: true
+    }
   });
 
   const fetchUsageAsync = useCallback(async () => {
-    fetchAsync(
-      `orderBy=${sorting.length > 0 ? sorting[0].id : 'completions'}&orderDirection=${sorting.length > 0 ? sorting[0].desc : 'desc'}&from=${fromDate?.toISOString() ?? ''}&to=${toDate?.toISOString() ?? ''}`
-    );
-  }, [fetchAsync, fromDate, toDate, sorting]);
+    const params = new URLSearchParams();
+    if (fromDate) params.set('from', fromDate.toISOString());
+    if (toDate) params.set('to', toDate.toISOString());
+    if (identityName) params.set('identityName', identityName);
+    if (userId) params.set('userId', userId);
+    if (model) params.set('model', model);
+    fetchAsync(params.toString());
+  }, [fetchAsync, fromDate, toDate, identityName, userId, model]);
 
   useEffect(() => {
     fetchUsageAsync();
   }, [fetchUsageAsync]);
+
+  useEffect(() => {
+    if (usageData?.items) {
+      onData?.(usageData.items);
+    }
+  }, [usageData, onData]);
 
   return (
     <div className="rounded-md border flex flex-col min-h-100 w-full h-full overflow-auto ">

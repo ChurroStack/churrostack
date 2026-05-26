@@ -1,4 +1,4 @@
-﻿using ChurrOS.Api.Models.Dtos;
+using ChurrOS.Api.Models.Dtos;
 using ChurrOS.Api.Models.Dtos.Llm;
 using DispatchR.Abstractions.Send;
 
@@ -12,8 +12,11 @@ namespace ChurrOS.Api.Commands.Llm
         public string OrderDirection { get; private set; }
         public DateTimeOffset? From { get; private set; }
         public DateTimeOffset? To { get; private set; }
+        public string? IdentityName { get; private set; }
+        public string? UserId { get; private set; }
+        public string? Model { get; private set; }
 
-        public GetLlmUsage(long llmId, string groupBy, string orderBy, string orderDirection, DateTimeOffset? from, DateTimeOffset? to)
+        public GetLlmUsage(long llmId, string groupBy, string orderBy, string orderDirection, DateTimeOffset? from, DateTimeOffset? to, string? identityName = null, string? userId = null, string? model = null)
         {
             LlmId = llmId;
             GroupBy = groupBy;
@@ -21,6 +24,9 @@ namespace ChurrOS.Api.Commands.Llm
             OrderDirection = orderDirection;
             From = from;
             To = to;
+            IdentityName = identityName;
+            UserId = userId;
+            Model = model;
         }
     }
 }

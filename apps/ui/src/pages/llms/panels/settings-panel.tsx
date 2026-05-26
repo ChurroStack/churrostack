@@ -28,11 +28,18 @@ import {
 import ApplicationPicker from '@/pickers/application-picker';
 import { Textarea } from '@/components/ui/textarea';
 
+const priceField = z.preprocess(
+  (v) => (v === '' || v === null || v === undefined ? undefined : v),
+  z.coerce.number().nonnegative().optional()
+);
+
 const llmDestination = z.object({
   uri: z.string().min(1, 'Enter the URL endpoint').url('Must be a valid URL'),
   model: z.string().min(1, 'Model name is required'),
   apiKey: z.string().optional(),
-  patch: z.string().optional()
+  patch: z.string().optional(),
+  inputTokenPricePer1M: priceField,
+  outputTokenPricePer1M: priceField
 });
 
 const formSchema = z.object({
@@ -241,6 +248,36 @@ const DestinationForm = ({
               </div>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor={`inputPrice-${index}`}>{t('Input price (USD / 1M tokens)')}</Label>
+                <Input
+                  id={`inputPrice-${index}`}
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  placeholder="0.00"
+                  {...form.register(`destination.${index}.inputTokenPricePer1M`)}
+                />
+                <FieldDescription>
+                  {t('Cost per 1,000,000 input (prompt) tokens billed by this destination.')}
+                </FieldDescription>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor={`outputPrice-${index}`}>{t('Output price (USD / 1M tokens)')}</Label>
+                <Input
+                  id={`outputPrice-${index}`}
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  placeholder="0.00"
+                  {...form.register(`destination.${index}.outputTokenPricePer1M`)}
+                />
+                <FieldDescription>
+                  {t('Cost per 1,000,000 output (completion) tokens billed by this destination.')}
+                </FieldDescription>
+              </div>
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="patch">{t('Patch request')}</Label>
               <div className="flex flex-row gap-2">

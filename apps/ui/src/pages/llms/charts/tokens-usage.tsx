@@ -23,7 +23,10 @@ const TokensUsageChart = ({
   title,
   maxValue,
   fromDate,
-  toDate
+  toDate,
+  identityName,
+  userId,
+  model
 }: {
   llmId: string;
   metricName: string;
@@ -31,20 +34,23 @@ const TokensUsageChart = ({
   maxValue?: number;
   fromDate: Date | undefined;
   toDate: Date | undefined;
+  identityName?: string;
+  userId?: string;
+  model?: string;
 }) => {
   const { t } = useTranslation();
   const { fetchAsync, isFetching, error, data } = useGetLlmMetric(llmId, metricName);
 
   useEffect(() => {
-    fetchAsync(
-      'from=' +
-        (fromDate ? fromDate.toISOString() : '') +
-        '&to=' +
-        (toDate ? toDate.toISOString() : '') +
-        '&tz=' +
-        encodeURIComponent(getBrowserTz())
-    );
-  }, [llmId, fromDate, toDate]);
+    const params = new URLSearchParams();
+    if (fromDate) params.set('from', fromDate.toISOString());
+    if (toDate) params.set('to', toDate.toISOString());
+    params.set('tz', getBrowserTz());
+    if (identityName) params.set('identityName', identityName);
+    if (userId) params.set('userId', userId);
+    if (model) params.set('model', model);
+    fetchAsync(params.toString());
+  }, [llmId, fromDate, toDate, identityName, userId, model]);
   if (error) {
     return (
       <Alert className="mb-4" variant="destructive">

@@ -1,6 +1,6 @@
 import { isNullOrWhiteSpace } from '@/extensions';
 import { getOidc } from '@/oidc';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 export interface Response<T> {
@@ -38,11 +38,31 @@ export function useGet<T>(basePath: string): UseGetResult<T> {
   const [error, setError] = useState<string>();
   const [statusCode, setStatusCode] = useState<number>();
   const [data, setData] = useState<T>();
+  // Tracks the latest in-flight controller so a new fetchAsync call aborts the previous one
+  // (last-write-wins) and unmount cancels whatever is pending.
+  const controllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+    };
+  }, []);
+
   const fetchAsync = useCallback(
     async (queryString: string, path?: string) => {
-      const oidc = await getOidc();
-      const accessToken = await oidc.getAccessToken();
+      controllerRef.current?.abort();
+      const controller = new AbortController();
+      controllerRef.current = controller;
+      const isStale = () => controllerRef.current !== controller || controller.signal.aborted;
+
       let result: Response<T> = { data: undefined, error: undefined };
+
+      const oidc = await getOidc();
+      if (isStale()) return result;
+      const accessToken = await oidc.getAccessToken();
+      if (isStale()) return result;
+
       try {
         setError(undefined);
         setIsError(false);
@@ -52,14 +72,16 @@ export function useGet<T>(basePath: string): UseGetResult<T> {
         const response = await fetch(url, {
           headers: {
             Authorization: `Bearer ${accessToken}`
-            //'Accept-Language': profile?.language ?? 'en'
-          }
+          },
+          signal: controller.signal
         });
+        if (isStale()) return result;
         setStatusCode(response.status);
         let jsonData = undefined;
         try {
           jsonData = await response.json();
         } catch {}
+        if (isStale()) return result;
 
         if (response.ok) {
           result = { data: jsonData, error: undefined };
@@ -72,12 +94,17 @@ export function useGet<T>(basePath: string): UseGetResult<T> {
           setError(errMsg);
         }
       } catch (exception) {
+        // Silently swallow aborts — a newer call has superseded this one.
+        if (isStale()) return result;
         const errMsg = `Error ${exception}`;
         result = { data: undefined, error: errMsg };
         setIsError(true);
         setError(errMsg);
       } finally {
-        setIsFetching(false);
+        // Only clear the spinner if no newer call has replaced us.
+        if (controllerRef.current === controller) {
+          setIsFetching(false);
+        }
       }
       return result;
     },
@@ -85,6 +112,8 @@ export function useGet<T>(basePath: string): UseGetResult<T> {
   );
 
   const reset = () => {
+    controllerRef.current?.abort();
+    controllerRef.current = null;
     setError(undefined);
     setIsError(false);
     setIsSuccess(false);
