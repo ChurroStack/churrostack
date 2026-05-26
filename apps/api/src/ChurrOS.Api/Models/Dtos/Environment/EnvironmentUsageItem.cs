@@ -1,4 +1,5 @@
 using ChurrOS.Api.Models.Dtos.Application;
+using ChurrOS.Api.Models.Dtos.Deployment;
 using ChurrOS.Api.Utils;
 
 namespace ChurrOS.Api.Models.Dtos.Environment
@@ -44,5 +45,9 @@ namespace ChurrOS.Api.Models.Dtos.Environment
 
         /// <summary>One of the <see cref="SizeRecommendation"/> direction constants.</summary>
         public string Direction { get; set; } = SizeRecommendation.NotAnalyzed;
+
+        public DeploymentProvisionStatus ProvisionStatus { get; set; } = DeploymentProvisionStatus.Pending;
+
+        public DeploymentExecutionStatus ExecutionStatus { get; set; } = DeploymentExecutionStatus.Stopped;
     }
 }

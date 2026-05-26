@@ -1,6 +1,7 @@
 using ChurrOS.Api.Commands.Identity;
 using ChurrOS.Api.Data;
 using ChurrOS.Api.Models.Dtos.Application;
+using ChurrOS.Api.Models.Dtos.Deployment;
 using ChurrOS.Api.Models.Dtos.Environment;
 using ChurrOS.Api.Models.Dtos.Identity;
 using ChurrOS.Api.Utils;
@@ -40,7 +41,13 @@ namespace ChurrOS.Api.Commands.Environment
                 .AsNoTracking()
                 .Where(a => a.EnvironmentId == environment.Id)
                 .OrderBy(a => a.Name)
-                .Select(a => new { a.Id, a.Name, a.Size })
+                .Select(a => new
+                {
+                    a.Id,
+                    a.Name,
+                    a.Size,
+                    Deployments = a.Deployments!.Select(d => new { d.ProvisionStatus, d.ExecutionStatus }).ToList()
+                })
                 .ToListAsync(cancellationToken);
 
             var appIds = apps.Select(a => a.Id).ToList();
@@ -65,12 +72,17 @@ namespace ChurrOS.Api.Commands.Environment
                         currentSize = new SizeRequestItem(resolvedHint, currentSize.Cpu, currentSize.Memory, currentSize.Storage, currentSize.Gpu);
                 }
 
+                var (provisionStatus, executionStatus) = DeploymentStatusAggregator.Aggregate(
+                    app.Deployments.Select(d => (d.ProvisionStatus, d.ExecutionStatus)));
+
                 var item = new EnvironmentUsageItem
                 {
                     ApplicationName = app.Name,
                     CurrentSize = currentSize,
                     WindowDays = 7,
                     Direction = SizeRecommendation.NotAnalyzed,
+                    ProvisionStatus = provisionStatus,
+                    ExecutionStatus = executionStatus,
                 };
 
                 if (recommendations.TryGetValue(app.Id, out var recommendation))
