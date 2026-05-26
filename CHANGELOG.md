@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/ChurroStack/churrostack/compare/v1.2.1...v1.3.0) (2026-05-26)
+
+
+### Features
+
+* **llms:** aggregated monitoring view + fix negative spend at source ([#28](https://github.com/ChurroStack/churrostack/issues/28)) ([ba55bc2](https://github.com/ChurroStack/churrostack/commit/ba55bc261946c00cab97a9881c3aef5fba0991e4))
+
 ## [1.2.1](https://github.com/ChurroStack/churrostack/compare/v1.2.0...v1.2.1) (2026-05-26)
 
 
