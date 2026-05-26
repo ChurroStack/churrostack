@@ -6,8 +6,8 @@ import { AlertCircle, ChartColumn } from 'lucide-react';
 import { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
+import { usdFormatter } from './format-usd';
 
-const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const chartConfig = {
   totalSpend: {
     label: 'Spend',

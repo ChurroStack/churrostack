@@ -48,6 +48,8 @@ const ShimmerComponent = ({
   );
 
   return (
+    // Module-level `motionComponentCache` ensures the component is created at most once per element type, not per render — the linter can't see through the Map lookup.
+    // eslint-disable-next-line react-hooks/static-components
     <MotionComponent
       animate={{ backgroundPosition: "0% center" }}
       className={cn(

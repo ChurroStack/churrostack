@@ -18,8 +18,8 @@ import {
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, RefreshCcw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { usdFormatter } from './format-usd';
 
-const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const intFormatter = new Intl.NumberFormat('en-US');
 
 const SortableHeader = ({
