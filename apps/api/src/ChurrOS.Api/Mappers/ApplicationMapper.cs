@@ -9,6 +9,10 @@ namespace ChurrOS.Api.Mappers
     {
         public void Register(TypeAdapterConfig config)
         {
+            // EnvironmentName/TemplateName are populated via Mapster auto-flattening
+            // from the anonymous projection in GetApplicationsHandler (o.Environment.Name,
+            // o.Template.Name). Adding explicit Map() rules here would be dead code because
+            // the handler maps from an anonymous type, not Domain.Application.
             TypeAdapterConfig<Domain.Application, ApplicationSummary>
                 .NewConfig()
                 .Map(o => o.ProvisionStatus, o => DeploymentProvisionStatus.Provisioning)

@@ -12,12 +12,15 @@ namespace ChurrOS.Api.Commands.Applications
 
             public string? Environment { get; set; }
 
+            public string? CreatedBy { get; set; }
+
             public ApplicationQueryRequest() : base() { }
 
-            public ApplicationQueryRequest(string environment, int? page = DefaultPage, int? pageSize = DefaultPageSize, string? search = null, ApplicationMode? mode = null) : base(page, pageSize, search)
+            public ApplicationQueryRequest(string environment, int? page = DefaultPage, int? pageSize = DefaultPageSize, string? search = null, ApplicationMode? mode = null, string? createdBy = null) : base(page, pageSize, search)
             {
                 Environment = environment;
                 Mode = mode;
+                CreatedBy = createdBy;
             }
         }
 

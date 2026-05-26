@@ -6,6 +6,7 @@ export type ApplicationMode = 'application' | 'workspace';
 
 export interface ApplicationSummary {
   name: string;
+  environmentName?: string;
   provisionStatus: DeploymentProvisionStatus;
   executionStatus: DeploymentExecutionStatus;
   mode: ApplicationMode;

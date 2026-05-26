@@ -51,7 +51,8 @@ namespace ChurrOS.Api.Commands.Applications
                 .Include(o => o.Deployments)
                 .Include(o => o.CreatedBy)
                 .Include(o => o.ModifiedBy)
-                .Include(o => o.Template);
+                .Include(o => o.Template)
+                .Include(o => o.Environment);
 
             if (!isAdmin)
                 query = query.Where(o => aclIds!.Contains(o.AclId) || envIds!.Contains(o.EnvironmentId));
@@ -72,11 +73,17 @@ namespace ChurrOS.Api.Commands.Applications
                 query = query.Where(o => o.Mode == mode);
             }
 
+            if (!string.IsNullOrWhiteSpace(request.Query?.CreatedBy))
+            {
+                var createdBy = request.Query.CreatedBy;
+                query = query.Where(o => o.CreatedBy!.Name == createdBy);
+            }
+
             var count = await query.CountAsync(cancellationToken);
 
             query = request.Query?.ApplyPaginationTo(query) ?? query;
 
-            var items = query.Select(o => new { o.Id, o.Name, o.Template, o.Mode, o.Deployments, o.Size, o.CreatedAt, o.CreatedBy, o.ModifiedAt, o.ModifiedBy });
+            var items = query.Select(o => new { o.Id, o.Name, o.Template, o.Mode, o.Deployments, o.Size, o.Environment, o.CreatedAt, o.CreatedBy, o.ModifiedAt, o.ModifiedBy });
 
             var result = new List<ApplicationSummary>();
             var db = _connectionMultiplexer.GetDatabase();
