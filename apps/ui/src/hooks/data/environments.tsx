@@ -1,6 +1,12 @@
 import { useDelete, useGet, usePatch, usePost, type QueryResult, type UseGetResult } from './core';
 import type { MemberSummary } from './identities';
-import type { AnalyzeUsageResult, ApplicationSize, SizeRecommendationDirection } from './applications';
+import type {
+  AnalyzeUsageResult,
+  ApplicationSize,
+  DeploymentExecutionStatus,
+  DeploymentProvisionStatus,
+  SizeRecommendationDirection
+} from './applications';
 
 export interface EnvironmentSummary {
   name: string;
@@ -191,13 +197,17 @@ export interface EnvironmentUsageItem {
   recommendedSize?: ApplicationSize;
   cpuAvg: number;
   cpuMax: number;
+  cpuP95: number;
   memoryAvg: number;
   memoryMax: number;
+  memoryP95: number;
   sampleCount: number;
   windowDays: number;
   computedAt?: string;
   hasRecommendation: boolean;
   direction: SizeRecommendationDirection;
+  provisionStatus: DeploymentProvisionStatus;
+  executionStatus: DeploymentExecutionStatus;
 }
 
 export function useGetEnvironmentUsage(environmentName?: string): UseGetResult<EnvironmentUsageItem[]> {

@@ -2,6 +2,7 @@
 using ChurrOS.Api.Data;
 using ChurrOS.Api.Models.Dtos;
 using ChurrOS.Api.Models.Dtos.Application;
+using ChurrOS.Api.Models.Dtos.Deployment;
 using ChurrOS.Api.Models.Dtos.Identity;
 using ChurrOS.Api.Services;
 using ChurrOS.Api.Utils;
@@ -83,45 +84,10 @@ namespace ChurrOS.Api.Commands.Applications
             await foreach (var app in items.ToAsyncEnumerable())
             {
                 var summary = _mapper.Map<ApplicationSummary>(app);
-                foreach (var deployment in app.Deployments ?? [])
-                {
-                    switch (deployment.ProvisionStatus)
-                    {
-                        case Models.Dtos.Deployment.DeploymentProvisionStatus.Provisioning:
-                            if (summary.ProvisionStatus == Models.Dtos.Deployment.DeploymentProvisionStatus.Pending)
-                            {
-                                summary.ProvisionStatus = Models.Dtos.Deployment.DeploymentProvisionStatus.Provisioning;
-                            }
-                            break;
-                        case Models.Dtos.Deployment.DeploymentProvisionStatus.Provisioned:
-                            if (summary.ProvisionStatus != Models.Dtos.Deployment.DeploymentProvisionStatus.Failed)
-                            {
-                                summary.ProvisionStatus = Models.Dtos.Deployment.DeploymentProvisionStatus.Provisioned;
-                            }
-                            break;
-                        case Models.Dtos.Deployment.DeploymentProvisionStatus.Failed:
-                            summary.ProvisionStatus = Models.Dtos.Deployment.DeploymentProvisionStatus.Failed;
-                            break;
-                    }
-                    switch (deployment.ExecutionStatus)
-                    {
-                        case Models.Dtos.Deployment.DeploymentExecutionStatus.Starting:
-                            if (summary.ExecutionStatus == Models.Dtos.Deployment.DeploymentExecutionStatus.Stopped)
-                            {
-                                summary.ExecutionStatus = Models.Dtos.Deployment.DeploymentExecutionStatus.Starting;
-                            }
-                            break;
-                        case Models.Dtos.Deployment.DeploymentExecutionStatus.Running:
-                            summary.ExecutionStatus = Models.Dtos.Deployment.DeploymentExecutionStatus.Running;
-                            break;
-                        case Models.Dtos.Deployment.DeploymentExecutionStatus.Stopping:
-                            if (summary.ExecutionStatus != Models.Dtos.Deployment.DeploymentExecutionStatus.Running)
-                            {
-                                summary.ExecutionStatus = Models.Dtos.Deployment.DeploymentExecutionStatus.Stopping;
-                            }
-                            break;
-                    }
-                }
+                var (provisionStatus, executionStatus) = DeploymentStatusAggregator.Aggregate(
+                    (app.Deployments ?? []).Select(d => (d.ProvisionStatus, d.ExecutionStatus)));
+                summary.ProvisionStatus = provisionStatus;
+                summary.ExecutionStatus = executionStatus;
                 var usageKey = $"churros_tenant:{_tenantResolver.AccountId}:app:{app.Id}:resource_usage";
                 var values = await db.HashGetAllAsync(usageKey);
                 var metrics = new Dictionary<string, double>();
