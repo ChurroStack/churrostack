@@ -273,10 +273,11 @@ namespace ChurrOS.Api.Commands.Llm
             try
             {
                 var now = DateTimeOffset.Now;
+                // Use the declared destination host: for internal:// the URIBuilder above was rebuilt to the resolved tunnel host, which won't match the cost-lookup key in GetLlmUsageHandler.
                 var labels = new Dictionary<string, string>()
                 {
                     { "destination_model", destination.Model },
-                    { "destination_host", destinationUriBuilder.Host }
+                    { "destination_host", new UriBuilder(destination.Uri).Host }
                 };
                 if (!string.IsNullOrWhiteSpace(xUserId))
                 {

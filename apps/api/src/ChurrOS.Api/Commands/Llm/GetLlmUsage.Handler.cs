@@ -60,19 +60,24 @@ namespace ChurrOS.Api.Commands.Llm
                 !string.IsNullOrWhiteSpace(request.UserId),
                 !string.IsNullOrWhiteSpace(request.Model));
 
-            // Build per-(host, model) pricing lookup from the LLM destinations.
-            // Two destinations sharing the same host+model collapse: the first one wins.
+            // Two destinations sharing the same host+model collapse: the first one wins. priceByModel is a fallback for metrics whose destination_host label doesn't match any declared URI host (historical internal:// rows).
             var priceByHostModel = new Dictionary<(string Host, string Model), (decimal InPer1M, decimal OutPer1M)>();
+            var priceByModel = new Dictionary<string, (decimal InPer1M, decimal OutPer1M)>(StringComparer.Ordinal);
             foreach (var dest in item.Destination ?? Array.Empty<LLmDestinationItem>())
             {
                 var host = TryGetHost(dest.Uri);
                 var model = dest.Model ?? string.Empty;
+                var price = (
+                    InPer1M: dest.InputTokenPricePer1M ?? 0m,
+                    OutPer1M: dest.OutputTokenPricePer1M ?? 0m);
                 var key = (host, model);
                 if (!priceByHostModel.ContainsKey(key))
                 {
-                    priceByHostModel[key] = (
-                        dest.InputTokenPricePer1M ?? 0m,
-                        dest.OutputTokenPricePer1M ?? 0m);
+                    priceByHostModel[key] = price;
+                }
+                if ((price.InPer1M > 0 || price.OutPer1M > 0) && !priceByModel.ContainsKey(model))
+                {
+                    priceByModel[model] = price;
                 }
             }
 
@@ -108,7 +113,9 @@ namespace ChurrOS.Api.Commands.Llm
                 row.CompletionTokens += (long)agg.CompletionTokens;
                 row.Completions += (long)agg.Completions;
 
-                var price = priceByHostModel.TryGetValue((host, model), out var p) ? p : (InPer1M: 0m, OutPer1M: 0m);
+                var price = priceByHostModel.TryGetValue((host, model), out var p) ? p
+                    : priceByModel.TryGetValue(model, out var pm) ? pm
+                    : (InPer1M: 0m, OutPer1M: 0m);
                 row.InputSpend += ((decimal)agg.PromptTokens) * price.InPer1M / 1_000_000m;
                 row.OutputSpend += ((decimal)agg.CompletionTokens) * price.OutPer1M / 1_000_000m;
             }

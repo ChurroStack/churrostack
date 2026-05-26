@@ -2,8 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { LlmUsageSummaryItem } from '@/hooks/data/llms';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { usdFormatter } from './format-usd';
 
-const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const intFormatter = new Intl.NumberFormat('en-US');
 
 const LlmKpiCards = ({ usage }: { usage: LlmUsageSummaryItem[] | undefined }) => {
