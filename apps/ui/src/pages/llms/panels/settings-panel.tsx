@@ -57,7 +57,7 @@ const DestinationForm = ({
   remove
 }: {
   id: string;
-  form: UseFormReturn<z.infer<typeof formSchema>>;
+  form: UseFormReturn<z.input<typeof formSchema>, unknown, z.output<typeof formSchema>>;
   index: number;
   remove: (index: number) => void;
 }) => {
@@ -299,7 +299,7 @@ const DestinationForm = ({
 const SettingsPanel = ({ llm }: { llm: LlmItem; onEnvironmentVariableSet?: (name: string, value: string) => void }) => {
   const { t } = useTranslation();
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<z.input<typeof formSchema>, unknown, z.output<typeof formSchema>>({
     resolver: standardSchemaResolver(formSchema),
     defaultValues: {
       names: llm.names ?? [''],

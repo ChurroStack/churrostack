@@ -62,7 +62,7 @@ const PortsPanel = ({ application }: { application: ApplicationItem }) => {
   const { t } = useTranslation();
   const { patchAsync, error, isFetching } = useUpdateApplication(application.name ?? '');
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<z.input<typeof formSchema>, unknown, z.output<typeof formSchema>>({
     resolver: standardSchemaResolver(formSchema),
     defaultValues: {
       ports: []
