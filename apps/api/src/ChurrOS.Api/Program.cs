@@ -112,6 +112,9 @@ namespace ChurrOS.Api
             builder.Services.AddLazyCache();
             builder.Services.AddMapster();
             builder.Services.AddDispatchR(cfg => cfg.Assemblies.Add(typeof(Program).Assembly));
+            // DispatchR registers handlers only via IRequestHandler<,> — see DispatchR 2.1.1.
+            // Shared utilities consumed by multiple handlers must be registered explicitly here.
+            builder.Services.AddScoped<ChurrOS.Api.Services.IMetricsBucketService, ChurrOS.Api.Services.MetricsBucketService>();
             builder.Services.AddLocalization(options => options.ResourcesPath = "Resources/Locales");
             builder.Services.Configure<ForwardedHeadersOptions>(options =>
             {

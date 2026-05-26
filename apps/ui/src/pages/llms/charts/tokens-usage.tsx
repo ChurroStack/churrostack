@@ -28,7 +28,7 @@ const TokensUsageChart = ({
   userId,
   model
 }: {
-  llmId: string;
+  llmId?: string;
   metricName: string;
   title: string;
   maxValue?: number;

@@ -29,7 +29,7 @@ const ModelSpends = ({
   model,
   onData
 }: {
-  llmId: string;
+  llmId?: string;
   fromDate: Date | undefined;
   toDate: Date | undefined;
   identityName?: string;

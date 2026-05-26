@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NewLlmDialog } from './dialogs/new-llm';
 import { useProfile } from '@/hooks/data/profile';
+import AggregatedMonitorPanel from './panels/aggregated-monitor-panel';
 
 const Llms = () => {
   const { t } = useTranslation();
@@ -48,12 +49,10 @@ const Llms = () => {
     );
   }
 
-  return (
-    <div className="flex flex-col p-5">
-      <h1 className="text-2xl font-bold">{t('Llms')}</h1>
-      <div className="mt-4">{t('Select an llm from left sidebar to view details.')}</div>
-    </div>
-  );
+  // Right-pane "white area" (no LLM selected): show aggregated stats across every LLM the
+  // current identity can read. The sidebar (pages/llms/index.tsx) is untouched and continues
+  // to drive navigation into per-LLM detail pages.
+  return <AggregatedMonitorPanel />;
 };
 
 export default Llms;
