@@ -2,16 +2,27 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table';
 import { formatBytes, formatDistanceToNow } from '@/extensions';
+import { getApplicationStatus, type ApplicationStatus } from '@/hooks/data/applications';
 import {
   useAnalyzeEnvironmentUsage,
   useGetEnvironmentUsage,
   type EnvironmentUsageItem
 } from '@/hooks/data/environments';
-import { AlertCircle, ArrowDown, ArrowUp, Gauge } from 'lucide-react';
-import { useEffect } from 'react';
+import { AppStatus } from '@/pages/applications/common/app-status';
+import { AlertCircle, ArrowDown, ArrowUp, ChevronDown, ChevronUp, Gauge } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 import { toast } from 'sonner';
 
 function RecommendationCell({ usage }: { usage: EnvironmentUsageItem }) {
@@ -39,6 +50,79 @@ function RecommendationCell({ usage }: { usage: EnvironmentUsageItem }) {
   );
 }
 
+type SortKey =
+  | 'applicationName'
+  | 'status'
+  | 'currentSize'
+  | 'cpuMax'
+  | 'cpuP95'
+  | 'memoryMax'
+  | 'memoryP95'
+  | 'computedAt';
+
+const NUMERIC_SORT_KEYS: ReadonlyArray<SortKey> = ['cpuMax', 'cpuP95', 'memoryMax', 'memoryP95'];
+
+// Order users actually expect when grouping apps: alive at the top, problems at the bottom.
+const STATUS_PRIORITY: Record<ApplicationStatus, number> = {
+  running: 0,
+  starting: 1,
+  provisioning: 2,
+  pending: 3,
+  stopping: 4,
+  stopped: 5,
+  failed: 6
+};
+
+function compareRows(a: EnvironmentUsageItem, b: EnvironmentUsageItem, key: SortKey): number {
+  switch (key) {
+    case 'applicationName':
+      return a.applicationName.localeCompare(b.applicationName);
+    case 'status': {
+      const sa = STATUS_PRIORITY[getApplicationStatus(a.provisionStatus, a.executionStatus)];
+      const sb = STATUS_PRIORITY[getApplicationStatus(b.provisionStatus, b.executionStatus)];
+      return sa - sb;
+    }
+    case 'currentSize':
+      return (a.currentSize?.hint ?? '').localeCompare(b.currentSize?.hint ?? '');
+    case 'cpuMax':
+      return a.cpuMax - b.cpuMax;
+    case 'cpuP95':
+      return a.cpuP95 - b.cpuP95;
+    case 'memoryMax':
+      return a.memoryMax - b.memoryMax;
+    case 'memoryP95':
+      return a.memoryP95 - b.memoryP95;
+    case 'computedAt':
+      return (a.computedAt ?? '').localeCompare(b.computedAt ?? '');
+  }
+}
+
+function SortableHeader({
+  label,
+  sortKey,
+  sort,
+  onSortChange
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: { key: SortKey; dir: 'asc' | 'desc' };
+  onSortChange: (key: SortKey) => void;
+}) {
+  const active = sort.key === sortKey;
+  const Icon = active ? (sort.dir === 'asc' ? ChevronUp : ChevronDown) : null;
+  return (
+    <TableHead aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button
+        type="button"
+        onClick={() => onSortChange(sortKey)}
+        className="inline-flex items-center gap-1 hover:text-foreground">
+        {label}
+        {Icon && <Icon className="size-3" />}
+      </button>
+    </TableHead>
+  );
+}
+
 const EnvironmentUsagePanel = ({
   environmentName,
   reloadSignal
@@ -49,6 +133,45 @@ const EnvironmentUsagePanel = ({
   const { t } = useTranslation();
   const { data: usage, fetchAsync, isFetching, error } = useGetEnvironmentUsage(environmentName);
   const { postAsync: analyzeAllAsync, isFetching: isAnalyzing } = useAnalyzeEnvironmentUsage(environmentName);
+
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({
+    key: 'applicationName',
+    dir: 'asc'
+  });
+
+  const onSortChange = (key: SortKey) => {
+    setSort((prev) => {
+      if (prev.key === key) {
+        return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, dir: NUMERIC_SORT_KEYS.includes(key) ? 'desc' : 'asc' };
+    });
+  };
+
+  const sortedUsage = useMemo(() => {
+    if (!usage) return undefined;
+    const rows = [...usage];
+    rows.sort((a, b) => {
+      const cmp = compareRows(a, b, sort.key);
+      return sort.dir === 'asc' ? cmp : -cmp;
+    });
+    return rows;
+  }, [usage, sort]);
+
+  const totals = useMemo(() => {
+    if (!usage?.length) return undefined;
+    return usage.reduce(
+      (acc, r) => ({
+        cpuAvg: acc.cpuAvg + r.cpuAvg,
+        cpuMax: acc.cpuMax + r.cpuMax,
+        cpuP95: acc.cpuP95 + r.cpuP95,
+        memoryAvg: acc.memoryAvg + r.memoryAvg,
+        memoryMax: acc.memoryMax + r.memoryMax,
+        memoryP95: acc.memoryP95 + r.memoryP95
+      }),
+      { cpuAvg: 0, cpuMax: 0, cpuP95: 0, memoryAvg: 0, memoryMax: 0, memoryP95: 0 }
+    );
+  }, [usage]);
 
   useEffect(() => {
     fetchAsync('');
@@ -87,24 +210,75 @@ const EnvironmentUsagePanel = ({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t('Application')}</TableHead>
-              <TableHead>{t('Current size')}</TableHead>
-              <TableHead>{t('CPU avg / max (cores)')}</TableHead>
-              <TableHead>{t('Memory avg / max')}</TableHead>
+              <SortableHeader
+                label={t('Application')}
+                sortKey="applicationName"
+                sort={sort}
+                onSortChange={onSortChange}
+              />
+              <SortableHeader label={t('Status')} sortKey="status" sort={sort} onSortChange={onSortChange} />
+              <SortableHeader
+                label={t('Current size')}
+                sortKey="currentSize"
+                sort={sort}
+                onSortChange={onSortChange}
+              />
+              <SortableHeader
+                label={t('CPU avg / max (cores)')}
+                sortKey="cpuMax"
+                sort={sort}
+                onSortChange={onSortChange}
+              />
+              <SortableHeader
+                label={t('CPU P95 (cores)')}
+                sortKey="cpuP95"
+                sort={sort}
+                onSortChange={onSortChange}
+              />
+              <SortableHeader
+                label={t('Memory avg / max')}
+                sortKey="memoryMax"
+                sort={sort}
+                onSortChange={onSortChange}
+              />
+              <SortableHeader
+                label={t('Memory P95')}
+                sortKey="memoryP95"
+                sort={sort}
+                onSortChange={onSortChange}
+              />
               <TableHead>{t('Recommended size')}</TableHead>
-              <TableHead>{t('Analyzed')}</TableHead>
+              <SortableHeader
+                label={t('Analyzed')}
+                sortKey="computedAt"
+                sort={sort}
+                onSortChange={onSortChange}
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {usage?.map((row) => (
+            {sortedUsage?.map((row) => (
               <TableRow key={row.applicationName}>
-                <TableCell className="font-medium">{row.applicationName}</TableCell>
+                <TableCell className="font-medium">
+                  <Link to={`/applications/${row.applicationName}`} className="hover:underline">
+                    {row.applicationName}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <AppStatus status={getApplicationStatus(row.provisionStatus, row.executionStatus)} />
+                </TableCell>
                 <TableCell className="font-mono text-xs">{row.currentSize?.hint ?? '-'}</TableCell>
                 <TableCell className="font-mono text-xs">
                   {row.computedAt ? `${row.cpuAvg.toFixed(2)} / ${row.cpuMax.toFixed(2)}` : '-'}
                 </TableCell>
                 <TableCell className="font-mono text-xs">
+                  {row.computedAt ? row.cpuP95.toFixed(2) : '-'}
+                </TableCell>
+                <TableCell className="font-mono text-xs">
                   {row.computedAt ? `${formatBytes(row.memoryAvg)} / ${formatBytes(row.memoryMax)}` : '-'}
+                </TableCell>
+                <TableCell className="font-mono text-xs">
+                  {row.computedAt ? formatBytes(row.memoryP95) : '-'}
                 </TableCell>
                 <TableCell>
                   <RecommendationCell usage={row} />
@@ -116,12 +290,31 @@ const EnvironmentUsagePanel = ({
             ))}
             {usage && usage.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
+                <TableCell colSpan={9} className="text-center text-muted-foreground py-6">
                   {t('No applications in this environment.')}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
+          {totals && (
+            <TableFooter>
+              <TableRow>
+                <TableCell colSpan={3} className="font-semibold">
+                  {t('Total')}
+                </TableCell>
+                <TableCell className="font-mono text-xs font-semibold">
+                  {`${totals.cpuAvg.toFixed(2)} / ${totals.cpuMax.toFixed(2)}`}
+                </TableCell>
+                <TableCell className="font-mono text-xs font-semibold">{totals.cpuP95.toFixed(2)}</TableCell>
+                <TableCell className="font-mono text-xs font-semibold">
+                  {`${formatBytes(totals.memoryAvg)} / ${formatBytes(totals.memoryMax)}`}
+                </TableCell>
+                <TableCell className="font-mono text-xs font-semibold">{formatBytes(totals.memoryP95)}</TableCell>
+                <TableCell />
+                <TableCell />
+              </TableRow>
+            </TableFooter>
+          )}
         </Table>
         {isFetching && !usage && (
           <div className="flex justify-center p-6">
