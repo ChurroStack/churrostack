@@ -2,7 +2,7 @@ import { LoadingSkeleton } from '@/components/loading-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { useGetLlm } from '@/hooks/data/llms';
-import { AlertCircle, Brain, ChartNoAxesCombined, Cog, Plug, UserLock } from 'lucide-react';
+import { AlertCircle, Brain, ChartNoAxesCombined, Cog, Plug, Sparkles, UserLock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AccessPanel from './panels/members-panel';
 import ConnectionPanel from './panels/connection-panel';
 import MonitorPanel from './panels/monitor-panel';
+import PlaygroundPanel from './panels/playground-panel';
 
 const Llm = () => {
   const { t } = useTranslation();
@@ -64,6 +65,11 @@ const Llm = () => {
                 <Plug /> {t('Connection information')}
               </div>
             </TabsTrigger>
+            <TabsTrigger value="playground">
+              <div className="flex flex-row items-center gap-2 px-2">
+                <Sparkles /> {t('Playground')}
+              </div>
+            </TabsTrigger>
             <TabsTrigger value="monitoring">
               <div className="flex flex-row items-center gap-2 px-2">
                 <ChartNoAxesCombined /> {t('Monitoring')}
@@ -86,8 +92,8 @@ const Llm = () => {
           <TabsContent value="connect" className="flex flex-col min-h-0 w-full h-full">
             <ConnectionPanel llm={llm} />
           </TabsContent>
-          <TabsContent value="connect" className="flex flex-col min-h-0 w-full h-full">
-            <ConnectionPanel llm={llm} />
+          <TabsContent value="playground" className="flex flex-col min-h-0 w-full h-full">
+            <PlaygroundPanel llm={llm} />
           </TabsContent>
           <TabsContent value="monitoring" className="flex flex-col min-h-0 w-full h-full">
             <MonitorPanel llm={llm} />
