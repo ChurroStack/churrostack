@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/ChurroStack/churrostack/compare/v1.1.0...v1.2.0) (2026-05-26)
+
+
+### Features
+
+* **llm:** add Playground tab for chatting via public OpenAI endpoint ([#20](https://github.com/ChurroStack/churrostack/issues/20)) ([0eed53a](https://github.com/ChurroStack/churrostack/commit/0eed53a1f07aa815b0bd5d1eba33838609226235))
+
+
+### Bug Fixes
+
+* **llm:** price spend for internal:// destinations and ceil sub-cent USD ([#22](https://github.com/ChurroStack/churrostack/issues/22)) ([988145c](https://github.com/ChurroStack/churrostack/commit/988145c847eeb1a0831fd4e2a0a71c0e7d7a563d))
+
 ## [1.1.0](https://github.com/ChurroStack/churrostack/compare/v1.0.4...v1.1.0) (2026-05-26)
 
 
