@@ -10,9 +10,12 @@ namespace ChurrOS.Api.Commands.Environment
         {
             public MemberItem[]? Members { get; set; }
 
-            public UpdateEnvironmentBody(MemberItem[]? members)
+            public string[]? Tags { get; set; }
+
+            public UpdateEnvironmentBody(MemberItem[]? members, string[]? tags = null)
             {
                 Members = members;
+                Tags = tags;
             }
         }
 

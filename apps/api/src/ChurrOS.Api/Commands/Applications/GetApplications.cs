@@ -14,13 +14,16 @@ namespace ChurrOS.Api.Commands.Applications
 
             public string? CreatedBy { get; set; }
 
+            public string[]? Tags { get; set; }
+
             public ApplicationQueryRequest() : base() { }
 
-            public ApplicationQueryRequest(string environment, int? page = DefaultPage, int? pageSize = DefaultPageSize, string? search = null, ApplicationMode? mode = null, string? createdBy = null) : base(page, pageSize, search)
+            public ApplicationQueryRequest(string environment, int? page = DefaultPage, int? pageSize = DefaultPageSize, string? search = null, ApplicationMode? mode = null, string? createdBy = null, string[]? tags = null) : base(page, pageSize, search)
             {
                 Environment = environment;
                 Mode = mode;
                 CreatedBy = createdBy;
+                Tags = tags;
             }
         }
 

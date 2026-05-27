@@ -47,6 +47,13 @@ namespace ChurrOS.Api.Commands.Environment
                 query = query.Where(o => o.Name.Contains(request.Query.Search));
             }
 
+            if (request.Query?.Tags is { Length: > 0 } tags)
+            {
+                // Npgsql 8+ translates this to `tags <@ o.Tags` (== `o.Tags @> tags`), GIN-indexable.
+                var tagsCount = tags.Length;
+                query = query.Where(o => o.Tags.Length >= tagsCount && tags.All(t => o.Tags.Contains(t)));
+            }
+
             var count = await query.CountAsync(cancellationToken);
 
             query = request.Query?.ApplyPaginationTo(query) ?? query;

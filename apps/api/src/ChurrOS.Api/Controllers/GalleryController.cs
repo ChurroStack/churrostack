@@ -24,7 +24,7 @@ namespace ChurrOS.Api.Controllers
         [Produces(MediaTypeNames.Application.Json)]
         [ProducesResponseType(typeof(QueryResult<GalleryAppSummary>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> GetApplications([FromQuery] QueryRequest query, CancellationToken cancellationToken)
+        public async Task<IActionResult> GetApplications([FromQuery] GetGalleryApps.GalleryAppsQueryRequest query, CancellationToken cancellationToken)
         {
             var result = await _mediator.Send(new GetGalleryApps(query), cancellationToken);
             return Ok(result);

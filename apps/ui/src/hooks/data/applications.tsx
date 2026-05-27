@@ -22,6 +22,7 @@ export interface ApplicationSummary {
     gpu_limit?: number;
     storage_limit?: number;
   };
+  tags: string[];
   createdAt: string;
   createdBy: {
     name: string;
@@ -91,6 +92,7 @@ export interface ApplicationItem {
   template: TemplateItem;
   parameters: { [name: string]: string[] };
   metadata: any;
+  tags: string[];
   createdAt: string;
   createdBy: {
     name: string;

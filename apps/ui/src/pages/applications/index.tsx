@@ -6,7 +6,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { MenuLayout } from '@/layouts/menu-layout';
 import { useApplicationService } from '@/services/application-services';
-import { AlertCircle, AppWindow, Cpu, Layers, MemoryStick, Plus, RefreshCcw, ServerCog, User, X } from 'lucide-react';
+import { AlertCircle, AppWindow, Cpu, Layers, MemoryStick, Plus, RefreshCcw, ServerCog, Tag, User, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
@@ -17,6 +17,7 @@ import ApplicationContextMenu from './menus/application-menu';
 import { AppStatus } from './common/app-status';
 import { useDebounce } from '@/hooks/use-debounce';
 import { ApplicationsFilter } from './filters/applications-filter';
+import { TagBadges } from '@/components/tag-badges';
 
 export default function Applications() {
   const { t } = useTranslation();
@@ -28,13 +29,17 @@ export default function Applications() {
   const debouncedSearchValue = useDebounce(searchValue, 500);
   const [environmentFilter, setEnvironmentFilter] = useState<string | undefined>(undefined);
   const [createdByFilter, setCreatedByFilter] = useState<string | undefined>(undefined);
+  const [tagsFilter, setTagsFilter] = useState<string[]>([]);
   const queryString = useMemo(() => {
     const parts: string[] = [];
     if (debouncedSearchValue) parts.push(`search=${encodeURIComponent(debouncedSearchValue)}`);
     if (environmentFilter) parts.push(`environment=${encodeURIComponent(environmentFilter)}`);
     if (createdByFilter) parts.push(`createdBy=${encodeURIComponent(createdByFilter)}`);
+    if (tagsFilter.length > 0) {
+      for (const tag of tagsFilter) parts.push(`tags=${encodeURIComponent(tag)}`);
+    }
     return parts.join('&');
-  }, [debouncedSearchValue, environmentFilter, createdByFilter]);
+  }, [debouncedSearchValue, environmentFilter, createdByFilter, tagsFilter]);
 
   useEffect(() => {
     reload(queryString);
@@ -106,8 +111,10 @@ export default function Applications() {
             <ApplicationsFilter
               environment={environmentFilter}
               createdBy={createdByFilter}
+              tags={tagsFilter}
               onEnvironmentChange={setEnvironmentFilter}
               onCreatedByChange={setCreatedByFilter}
+              onTagsChange={setTagsFilter}
             />
             <Tooltip>
               <TooltipTrigger asChild>
@@ -121,7 +128,7 @@ export default function Applications() {
             </Tooltip>
           </>
         }>
-        {(environmentFilter || createdByFilter) && (
+        {(environmentFilter || createdByFilter || tagsFilter.length > 0) && (
           <div className="flex flex-row flex-wrap gap-1 px-2 py-2 border-b">
             {environmentFilter && (
               <Badge variant="secondary" className="gap-1">
@@ -149,6 +156,19 @@ export default function Applications() {
                 </button>
               </Badge>
             )}
+            {tagsFilter.map((tag) => (
+              <Badge key={tag} variant="secondary" className="gap-1">
+                <Tag className="size-3" />
+                <span className="max-w-40 truncate">{tag}</span>
+                <button
+                  type="button"
+                  aria-label={t('Clear tag filter')}
+                  onClick={() => setTagsFilter((prev) => prev.filter((x) => x !== tag))}
+                  className="ml-1 hover:text-foreground">
+                  <X className="size-3" />
+                </button>
+              </Badge>
+            ))}
           </div>
         )}
         {deleteError && (
@@ -240,6 +260,7 @@ export default function Applications() {
                 <span className="truncate">{application.environmentName}</span>
               </div>
             )}
+            <TagBadges tags={application.tags} />
             {/* <div className="flex w-full items-center gap-2">
               <span>{mail.name}</span>{" "}
               <span className="ml-auto text-xs">{mail.date}</span>

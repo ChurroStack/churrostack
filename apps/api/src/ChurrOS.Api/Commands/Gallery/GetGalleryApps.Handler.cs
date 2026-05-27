@@ -29,17 +29,38 @@ namespace ChurrOS.Api.Commands.Gallery
                 .Select(o => o.Id)
                 .ToListAsync();
 
-            var query = _context.Set<Domain.Application>()
+            var baseQuery = _context.Set<Domain.Application>()
                 .Where(o => identityAcls.Keys.Contains(o.AclId) || envIds.Contains(o.EnvironmentId))
                 .Include(o => o.CreatedBy)
                 .Include(o => o.ModifiedBy)
-                .Select(o => new { o.Name, o.Template, o.Metadata, o.Ports, o.CreatedAt, o.CreatedBy, o.ModifiedAt, o.ModifiedBy })
+                .Include(o => o.Environment)
                 .AsNoTracking();
 
             if (!string.IsNullOrWhiteSpace(request.Query?.Search))
             {
-                query = query.Where(o => o.Name!.Contains(request.Query.Search));
+                baseQuery = baseQuery.Where(o => o.Name!.Contains(request.Query.Search));
             }
+
+            if (!string.IsNullOrWhiteSpace(request.Query?.Environment))
+            {
+                var environmentName = request.Query.Environment;
+                baseQuery = baseQuery.Where(o => o.Environment!.Name == environmentName);
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.Query?.CreatedBy))
+            {
+                var createdBy = request.Query.CreatedBy;
+                baseQuery = baseQuery.Where(o => o.CreatedBy!.Name == createdBy);
+            }
+
+            if (request.Query?.Tags is { Length: > 0 } tags)
+            {
+                // Npgsql 8+ translates this to `tags <@ o.Tags` (== `o.Tags @> tags`), GIN-indexable.
+                var tagsCount = tags.Length;
+                baseQuery = baseQuery.Where(o => o.Tags.Length >= tagsCount && tags.All(t => o.Tags.Contains(t)));
+            }
+
+            var query = baseQuery.Select(o => new { o.Name, o.Template, o.Metadata, o.Ports, o.Tags, o.CreatedAt, o.CreatedBy, o.ModifiedAt, o.ModifiedBy });
 
             var count = await query.CountAsync(cancellationToken);
 
@@ -57,7 +78,7 @@ namespace ChurrOS.Api.Commands.Gallery
                 }
                 var port = o.Ports?.FirstOrDefault(o => o.Protocol == Models.Dtos.Template.Definition.ProtocolType.Web && o.Sharing == Models.Dtos.Share.SharingMode.Members);
                 string? path = port is null ? null : port.Uri ?? $"share/{o.Name}/{port.Name}";
-                return new GalleryAppSummary(o.Template?.Icon, o.Name, o.Template?.Title, description, path);
+                return new GalleryAppSummary(o.Template?.Icon, o.Name, o.Template?.Title, description, path, o.Tags);
             }), count);
         }
     }

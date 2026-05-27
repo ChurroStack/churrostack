@@ -1,44 +1,61 @@
 import '@xyflow/react/dist/style.css';
 
-// import {
-//   BaseNode,
-//   BaseNodeContent,
-//   BaseNodeHeader,
-//   BaseNodeHeaderTitle,
-// } from "@/components/base-node";
-
 import { AppSidebar } from '@/components/app-sidebar';
 import { useProfile } from '@/hooks/data/profile';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { AppWindow, Brain, Copy, KeyRound, ServerCog } from 'lucide-react';
 import { useGetGalleryApps, useGetGalleryLlms } from '@/hooks/data/gallery';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { renderIcon } from '../../extensions';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import LlmInfoDialog from './dialogs/llm-info-dialog';
+import { SearchAndFilter } from '@/components/search-and-filter';
+import { ApplicationsFilterContent } from '@/pages/applications/filters/applications-filter';
+import { TagBadges } from '@/components/tag-badges';
+import { useDebounce } from '@/hooks/use-debounce';
 
 const Home = () => {
   const { profile } = useProfile();
   const { t } = useTranslation();
   const { fetchAsync: fetchGalleryApps, data: galleryApps } = useGetGalleryApps();
   const { fetchAsync: fetchGalleryLlms, data: galleryLlms } = useGetGalleryLlms();
+  const [searchValue, setSearchValue] = useState('');
+  const debouncedSearch = useDebounce(searchValue, 500);
+  const [tagsFilter, setTagsFilter] = useState<string[]>([]);
+  const [environmentFilter, setEnvironmentFilter] = useState<string | undefined>(undefined);
+  const [createdByFilter, setCreatedByFilter] = useState<string | undefined>(undefined);
+
+  const appsQuery = useMemo(() => {
+    const parts: string[] = [];
+    if (debouncedSearch) parts.push(`search=${encodeURIComponent(debouncedSearch)}`);
+    if (environmentFilter) parts.push(`environment=${encodeURIComponent(environmentFilter)}`);
+    if (createdByFilter) parts.push(`createdBy=${encodeURIComponent(createdByFilter)}`);
+    for (const tag of tagsFilter) parts.push(`tags=${encodeURIComponent(tag)}`);
+    return parts.join('&');
+  }, [debouncedSearch, tagsFilter, environmentFilter, createdByFilter]);
+
+  const llmsQuery = useMemo(() => {
+    return debouncedSearch ? `search=${encodeURIComponent(debouncedSearch)}` : '';
+  }, [debouncedSearch]);
 
   useEffect(() => {
-    fetchGalleryApps('');
-  }, [fetchGalleryApps]);
+    fetchGalleryApps(appsQuery);
+  }, [fetchGalleryApps, appsQuery]);
 
   useEffect(() => {
-    fetchGalleryLlms('');
-  }, [fetchGalleryLlms]);
+    fetchGalleryLlms(llmsQuery);
+  }, [fetchGalleryLlms, llmsQuery]);
 
   const copyAppUrl = (path: string) => {
     navigator.clipboard.writeText(window.location.origin + '/' + path);
     toast.success(t('Application url copied to clipboard'));
   };
+
+  const hasActiveFilter = tagsFilter.length > 0 || !!environmentFilter || !!createdByFilter;
 
   return (
     <>
@@ -47,10 +64,38 @@ const Home = () => {
       <AppSidebar />
       <div className="h-screen overflow-y-auto flex justify-center w-full p-4">
         <div className="w-full max-w-6xl">
-          <h1 className="text-2xl font-bold lg:mt-10">
-            {t('Hello')} {profile?.displayName ?? profile?.name}
-          </h1>
-          <div>{t('What application do you want to try today?')}</div>
+          <div className="flex flex-row gap-4 items-start justify-between lg:mt-10">
+            <div className="flex flex-col">
+              <h1 className="text-2xl font-bold">
+                {t('Hello')} {profile?.displayName ?? profile?.name}
+              </h1>
+              <div>{t('What application do you want to try today?')}</div>
+            </div>
+            <div className="w-72 shrink-0">
+              <SearchAndFilter
+                searchValue={searchValue}
+                onSearchValueChange={setSearchValue}
+                placeholder={t('Search...')}
+                hasActiveFilter={hasActiveFilter}
+                filterContent={
+                  <div className="flex flex-col gap-3">
+                    <ApplicationsFilterContent
+                      environment={environmentFilter}
+                      createdBy={createdByFilter}
+                      tags={tagsFilter}
+                      permission="execute"
+                      onEnvironmentChange={setEnvironmentFilter}
+                      onCreatedByChange={setCreatedByFilter}
+                      onTagsChange={setTagsFilter}
+                    />
+                    <span className="text-xs text-muted-foreground border-t pt-2">
+                      {t('Filters apply to Applications only.')}
+                    </span>
+                  </div>
+                }
+              />
+            </div>
+          </div>
           <h2 className="text-xl font-bold mt-4 lg:mt-10">{t('Applications')}</h2>
           {galleryApps?.items && galleryApps?.items?.length === 0 && (
             <div className="text-muted-foreground mt-4">
@@ -71,9 +116,10 @@ const Home = () => {
               <Link key={`app-${app.name}`} to={app.path} target="_blank">
                 <div className="border gap-2 rounded-sm p-2 flex flex-row tems-start min-w-32 md:max-w-100 w-full hover:bg-accent cursor-pointer">
                   {renderIcon(app.icon ?? 'app-window', 'size-6 m-2')}
-                  <div className="flex flex-col w-full gap-2 items-start min-w-0 flex-1">
+                  <div className="flex flex-col w-full gap-1 items-start min-w-0 flex-1">
                     <div className="text-xs font-semibold uppercase w-full truncate min-w-0">{app.name}</div>
                     <div className="text-xs text-muted-foreground break-all line-clamp-1">{app.description}</div>
+                    <TagBadges tags={app.tags} max={3} />
                   </div>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -149,20 +195,7 @@ const Home = () => {
               </Link>
             </div>
           )}
-          <br/>
-          {/* <BaseNode>
-        <BaseNodeHeader>
-          <BaseNodeHeaderTitle>Base Node</BaseNodeHeaderTitle>
-        </BaseNodeHeader>
-        <BaseNodeContent>
-          This is a base node component that can be used to build other nodes.
-          Access token: {accessToken}
-        </BaseNodeContent>
-      </BaseNode> */}
-          {/* <div>
-          This is a base node component that can be used to build other nodes. Access token:
-          <div className="break-all p-2 border-2 m-5">{accessToken}</div>
-        </div> */}
+          <br />
         </div>
       </div>
     </>

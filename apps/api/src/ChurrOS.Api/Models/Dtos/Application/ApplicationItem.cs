@@ -25,8 +25,9 @@ namespace ChurrOS.Api.Models.Dtos.Application
         public IdentitySummary CreatedBy { get; protected set; }
         public DateTimeOffset ModifiedAt { get; protected set; }
         public IdentitySummary ModifiedBy { get; protected set; }
+        public string[] Tags { get; protected set; }
 
-        public ApplicationItem(string name, MemberSummary[] members, string environmentName, TemplateItem template, ApplicationMode mode, SizeRequestItem size, int replicas, ApplicationEnvironmentVariable[] variables, IDictionary<string, string[]> parameters, ICollection<ApplicationExtensionItem>? extensions, ICollection<ApplicationDeploymentItem>? deployments, byte[] deploymentHash, PortDefinitionItem[]? ports, JsonElement? metadata, DateTimeOffset createdAt, IdentitySummary createdBy, DateTimeOffset modifiedAt, IdentitySummary modifiedBy)
+        public ApplicationItem(string name, MemberSummary[] members, string environmentName, TemplateItem template, ApplicationMode mode, SizeRequestItem size, int replicas, ApplicationEnvironmentVariable[] variables, IDictionary<string, string[]> parameters, ICollection<ApplicationExtensionItem>? extensions, ICollection<ApplicationDeploymentItem>? deployments, byte[] deploymentHash, PortDefinitionItem[]? ports, JsonElement? metadata, DateTimeOffset createdAt, IdentitySummary createdBy, DateTimeOffset modifiedAt, IdentitySummary modifiedBy, string[]? tags = null)
         {
             Name = name;
             Members = members;
@@ -46,6 +47,7 @@ namespace ChurrOS.Api.Models.Dtos.Application
             CreatedBy = createdBy;
             ModifiedAt = modifiedAt;
             ModifiedBy = modifiedBy;
+            Tags = tags ?? Array.Empty<string>();
         }
     }
 }

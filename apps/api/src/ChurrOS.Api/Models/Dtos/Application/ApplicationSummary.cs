@@ -17,11 +17,12 @@ namespace ChurrOS.Api.Models.Dtos.Application
         public DateTimeOffset ModifiedAt { get; protected set; }
         public IdentitySummary ModifiedBy { get; protected set; }
         public IDictionary<string, double>? Metrics { get; set; }
+        public string[] Tags { get; protected set; }
 
-        public ApplicationSummary() : this(null!, ApplicationMode.Application, null!, null, default, null!, default, null!, null) { }
+        public ApplicationSummary() : this(null!, ApplicationMode.Application, null!, null, default, null!, default, null!, null, null) { }
 
         [JsonConstructor]
-        public ApplicationSummary(string name, ApplicationMode mode, string templateName, string? environmentName, DateTimeOffset createdAt, IdentitySummary createdBy, DateTimeOffset modifiedAt, IdentitySummary modifiedBy, IDictionary<string, double>? metrics)
+        public ApplicationSummary(string name, ApplicationMode mode, string templateName, string? environmentName, DateTimeOffset createdAt, IdentitySummary createdBy, DateTimeOffset modifiedAt, IdentitySummary modifiedBy, IDictionary<string, double>? metrics, string[]? tags)
         {
             Name = name;
             Mode = mode;
@@ -32,6 +33,7 @@ namespace ChurrOS.Api.Models.Dtos.Application
             ModifiedAt = modifiedAt;
             ModifiedBy = modifiedBy;
             Metrics = metrics;
+            Tags = tags ?? Array.Empty<string>();
         }
     }
 }
