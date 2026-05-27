@@ -131,6 +131,28 @@ React Router 7 nested routes. Layout components (e.g. `EnvironmentLayout`) act a
 - `src/pickers/`: Modal picker components (application, environment, template, identity, size) — used within dialogs for selecting related entities.
 - `src/extensions.tsx`: Shared utility functions (date formatting, icon helpers, etc).
 
+### Loading, empty, and error states (cards / tables / charts)
+
+Every data-bound card, table, and chart MUST distinguish three states. Never render `0`, `-`, `$0.00`, or other placeholder values while data is loading — they flash and read as real (but wrong) data.
+
+- **Loading** (first fetch only — `data === undefined`): render a `<Skeleton />` shaped like the final content. Cards: skeleton blocks at the size of the value text. Tables: skeleton rows under the real `<TableHeader>`. Charts: a skeleton rectangle the height of the chart. **Do not flip back to a skeleton on refresh** — keep the previous data on screen so refreshes do not flicker. The repo's `useGet` (`src/hooks/data/core.tsx`) preserves `data` across refetches, so `data === undefined` is the correct first-load probe.
+- **Empty** (fetched, no rows): render the shadcn `<Empty>` composition from `@/components/ui/empty`:
+  ```tsx
+  <Empty>
+    <EmptyHeader>
+      <EmptyMedia variant="icon"><Icon /></EmptyMedia>
+      <EmptyTitle>{t('…')}</EmptyTitle>
+      <EmptyDescription>{t('…')}</EmptyDescription>
+    </EmptyHeader>
+  </Empty>
+  ```
+  Pick a Lucide icon that reads as "no data" in context (`Receipt`, `ChartColumn`, `Inbox`, …). Title states the situation ("No usage in this period"); description states the action ("Adjust the date range or filters to see results."). Render `<Empty />` *instead of* the table/chart, not inside a `<TableCell>` — `<Empty />` is a flex container with heavy padding and looks wrong in a cell.
+- **Error**: keep the existing `<Alert variant="destructive">` pattern.
+
+KPI cards are a partial exception: an empty result that legitimately means "0" (e.g. "Total Requests: 0") renders the `0`, not `<Empty />` — but only after the first fetch resolves. Until then, show the skeleton. On error, cards show a terse "Unavailable" instead of `0`, so a glance can't misread a failed fetch as "nothing happened".
+
+Numeric formatters used in cards/tables MUST clamp non-negative quantities to `>= 0` before formatting. `Intl.NumberFormat` preserves the sign of IEEE-754 `-0`, so `Math.ceil(value * 100 - epsilon) / 100` on `value === 0` leaks as `"-$0.00"`. See `src/pages/llms/charts/format-usd.ts`.
+
 ## Deployment
 
 Multi-stage Docker build: Node 20 compile → Nginx alpine serve. Runtime env vars injected via `entrypoint.sh` (envsubst). The `nginx.conf` handles SPA fallback, API proxy, WebSocket/SSE passthrough (no buffering), and GZIP compression.

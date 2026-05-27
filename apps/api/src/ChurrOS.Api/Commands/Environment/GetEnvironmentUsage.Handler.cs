@@ -46,6 +46,10 @@ namespace ChurrOS.Api.Commands.Environment
                     a.Id,
                     a.Name,
                     a.Size,
+                    CreatedByName = a.CreatedBy != null ? a.CreatedBy.Name : null,
+                    CreatedByDisplayName = a.CreatedBy != null ? a.CreatedBy.DisplayName : null,
+                    CreatedByType = a.CreatedBy != null ? (IdentityType?)a.CreatedBy.Type : null,
+                    CreatedByRole = a.CreatedBy != null ? (IdentityRole?)a.CreatedBy.Role : null,
                     Deployments = a.Deployments!.Select(d => new { d.ProvisionStatus, d.ExecutionStatus }).ToList()
                 })
                 .ToListAsync(cancellationToken);
@@ -78,6 +82,13 @@ namespace ChurrOS.Api.Commands.Environment
                 var item = new EnvironmentUsageItem
                 {
                     ApplicationName = app.Name,
+                    CreatedBy = app.CreatedByName == null
+                        ? null
+                        : new IdentitySummary(
+                            app.CreatedByName,
+                            app.CreatedByDisplayName!,
+                            app.CreatedByType!.Value,
+                            app.CreatedByRole!.Value),
                     CurrentSize = currentSize,
                     WindowDays = 7,
                     Direction = SizeRecommendation.NotAnalyzed,

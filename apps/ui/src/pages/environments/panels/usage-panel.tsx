@@ -53,6 +53,7 @@ function RecommendationCell({ usage }: { usage: EnvironmentUsageItem }) {
 type SortKey =
   | 'applicationName'
   | 'status'
+  | 'createdBy'
   | 'currentSize'
   | 'cpuMax'
   | 'cpuP95'
@@ -82,6 +83,10 @@ function compareRows(a: EnvironmentUsageItem, b: EnvironmentUsageItem, key: Sort
       const sb = STATUS_PRIORITY[getApplicationStatus(b.provisionStatus, b.executionStatus)];
       return sa - sb;
     }
+    case 'createdBy':
+      return (a.createdBy?.displayName ?? a.createdBy?.name ?? '').localeCompare(
+        b.createdBy?.displayName ?? b.createdBy?.name ?? ''
+      );
     case 'currentSize':
       return (a.currentSize?.hint ?? '').localeCompare(b.currentSize?.hint ?? '');
     case 'cpuMax':
@@ -218,6 +223,12 @@ const EnvironmentUsagePanel = ({
               />
               <SortableHeader label={t('Status')} sortKey="status" sort={sort} onSortChange={onSortChange} />
               <SortableHeader
+                label={t('Created by')}
+                sortKey="createdBy"
+                sort={sort}
+                onSortChange={onSortChange}
+              />
+              <SortableHeader
                 label={t('Current size')}
                 sortKey="currentSize"
                 sort={sort}
@@ -267,6 +278,7 @@ const EnvironmentUsagePanel = ({
                 <TableCell>
                   <AppStatus status={getApplicationStatus(row.provisionStatus, row.executionStatus)} />
                 </TableCell>
+                <TableCell className="text-xs">{row.createdBy?.displayName ?? row.createdBy?.name ?? '-'}</TableCell>
                 <TableCell className="font-mono text-xs">{row.currentSize?.hint ?? '-'}</TableCell>
                 <TableCell className="font-mono text-xs">
                   {row.computedAt ? `${row.cpuAvg.toFixed(2)} / ${row.cpuMax.toFixed(2)}` : '-'}
@@ -290,7 +302,7 @@ const EnvironmentUsagePanel = ({
             ))}
             {usage && usage.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-muted-foreground py-6">
+                <TableCell colSpan={10} className="text-center text-muted-foreground py-6">
                   {t('No applications in this environment.')}
                 </TableCell>
               </TableRow>
@@ -299,7 +311,7 @@ const EnvironmentUsagePanel = ({
           {totals && (
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={3} className="font-semibold">
+                <TableCell colSpan={4} className="font-semibold">
                   {t('Total')}
                 </TableCell>
                 <TableCell className="font-mono text-xs font-semibold">

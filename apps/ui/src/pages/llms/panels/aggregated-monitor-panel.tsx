@@ -34,7 +34,8 @@ const AggregatedMonitorPanel = () => {
   const [identityName, setIdentityName] = useState<string>('');
   const [userIdInput, setUserIdInput] = useState<string>('');
   const [modelSelection, setModelSelection] = useState<string>(ALL_MODELS);
-  const [usageRows, setUsageRows] = useState<LlmUsageSummaryItem[]>([]);
+  const [usageRows, setUsageRows] = useState<LlmUsageSummaryItem[] | undefined>(undefined);
+  const [usageError, setUsageError] = useState<string | undefined>(undefined);
   const [modelRows, setModelRows] = useState<LlmUsageSummaryItem[]>([]);
 
   const debouncedUserId = useDebounce(userIdInput, 300);
@@ -106,7 +107,7 @@ const AggregatedMonitorPanel = () => {
         )}
       </div>
 
-      <LlmKpiCards usage={usageRows} />
+      <LlmKpiCards usage={usageRows} error={usageError} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <TokensUsageChart
@@ -152,6 +153,7 @@ const AggregatedMonitorPanel = () => {
         userId={userId}
         model={model}
         onData={setUsageRows}
+        onError={setUsageError}
       />
     </div>
   );

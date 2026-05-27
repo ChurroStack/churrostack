@@ -1,5 +1,6 @@
 using ChurrOS.Api.Models.Dtos.Application;
 using ChurrOS.Api.Models.Dtos.Deployment;
+using ChurrOS.Api.Models.Dtos.Identity;
 using ChurrOS.Api.Utils;
 
 namespace ChurrOS.Api.Models.Dtos.Environment
@@ -10,6 +11,8 @@ namespace ChurrOS.Api.Models.Dtos.Environment
     public class EnvironmentUsageItem
     {
         public string ApplicationName { get; set; } = string.Empty;
+
+        public IdentitySummary? CreatedBy { get; set; }
 
         public SizeRequestItem? CurrentSize { get; set; }
 
