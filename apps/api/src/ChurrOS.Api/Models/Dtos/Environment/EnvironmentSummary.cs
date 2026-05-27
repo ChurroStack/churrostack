@@ -11,8 +11,9 @@ namespace ChurrOS.Api.Models.Dtos.Environment
         public IdentitySummary CreatedBy { get; private set; }
         public DateTimeOffset ModifiedAt { get; private set; }
         public IdentitySummary ModifiedBy { get; private set; }
+        public string[] Tags { get; private set; }
 
-        public EnvironmentSummary(string name, string uri, EnvironmentProvisionStatus provisionStatus, DateTimeOffset createdAt, IdentitySummary createdBy, DateTimeOffset modifiedAt, IdentitySummary modifiedBy)
+        public EnvironmentSummary(string name, string uri, EnvironmentProvisionStatus provisionStatus, DateTimeOffset createdAt, IdentitySummary createdBy, DateTimeOffset modifiedAt, IdentitySummary modifiedBy, string[]? tags = null)
         {
             Name = name;
             Uri = uri;
@@ -21,6 +22,7 @@ namespace ChurrOS.Api.Models.Dtos.Environment
             CreatedBy = createdBy;
             ModifiedAt = modifiedAt;
             ModifiedBy = modifiedBy;
+            Tags = tags ?? Array.Empty<string>();
         }
     }
 }

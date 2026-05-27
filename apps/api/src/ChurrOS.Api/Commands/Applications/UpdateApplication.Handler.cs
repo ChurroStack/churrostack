@@ -129,6 +129,9 @@ namespace ChurrOS.Api.Commands.Applications
                         case "metadata":
                             app.Metadata = entry.Value.Deserialize<JsonElement>(JsonSettings.Value)!;
                             break;
+                        case "tags":
+                            app.Tags = TagsHelper.Normalize(entry.Value.Deserialize<string[]>(JsonSettings.Value));
+                            break;
                         default:
                             throw new ArgumentException($"Cannot update member '{entry.Name}' for this application.");
                     }

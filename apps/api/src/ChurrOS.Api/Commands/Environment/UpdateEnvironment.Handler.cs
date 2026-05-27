@@ -53,6 +53,20 @@ namespace ChurrOS.Api.Commands.Environment
             environment.ModifiedAt = DateTimeOffset.Now;
             environment.ModifiedById = _dbContext.IdentityId;
 
+            if (request.Body.Tags is not null)
+                environment.Tags = TagsHelper.Normalize(request.Body.Tags);
+
+            // Tag-only edits skip the runner reconnect/template sync below to avoid a
+            // multi-second round-trip (and a transient "Provisioning" state) for a metadata-only
+            // change. Triggered only when Tags is provided and Members is absent/empty.
+            var membersChanging = request.Body.Members is { Length: > 0 };
+            if (!membersChanging && request.Body.Tags is not null)
+            {
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                await _clientNotificationService.NotifyChangeAsync(environment.AccountId, environment.Name, ClientNotificationService.NotificationTargetType.Environment, cancellationToken);
+                return await _mediator.Send(new GetEnvironmentByName(request.Name), cancellationToken);
+            }
+
             var parts = environment.EncryptionKey.Split(':');
             var encryptionKey = AesGcmEncryption.Decrypt(parts[0], _dbContext.AccountEncryptionKey, parts[1]);
             var client = _runnerService.CreateClient(environment.Host[1], environment.Name, environment.Port, encryptionKey);

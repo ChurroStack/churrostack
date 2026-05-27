@@ -6,9 +6,21 @@ namespace ChurrOS.Api.Commands.Environment
 {
     public class GetEnvironments : IRequest<GetEnvironments, ValueTask<QueryResult<EnvironmentSummary>>>
     {
-        public QueryRequest Query { get; private set; }
+        public class EnvironmentQueryRequest : QueryRequest
+        {
+            public string[]? Tags { get; set; }
 
-        public GetEnvironments(QueryRequest query)
+            public EnvironmentQueryRequest() : base() { }
+
+            public EnvironmentQueryRequest(int? page = DefaultPage, int? pageSize = DefaultPageSize, string? search = null, string[]? tags = null) : base(page, pageSize, search)
+            {
+                Tags = tags;
+            }
+        }
+
+        public EnvironmentQueryRequest Query { get; private set; }
+
+        public GetEnvironments(EnvironmentQueryRequest query)
         {
             Query = query;
         }

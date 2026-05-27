@@ -80,11 +80,21 @@ namespace ChurrOS.Api.Commands.Applications
                 query = query.Where(o => o.CreatedBy!.Name == createdBy);
             }
 
+            if (request.Query?.Tags is { Length: > 0 } tags)
+            {
+                // Npgsql 8+ translates `tags.All(t => o.Tags.Contains(t))` to `tags <@ o.Tags`
+                // (equivalent to `o.Tags @> tags`), which is GIN-indexable. The `Length`
+                // precondition is a cheap pre-filter for the rare case the operator falls back
+                // to a per-row evaluation.
+                var tagsCount = tags.Length;
+                query = query.Where(o => o.Tags.Length >= tagsCount && tags.All(t => o.Tags.Contains(t)));
+            }
+
             var count = await query.CountAsync(cancellationToken);
 
             query = request.Query?.ApplyPaginationTo(query) ?? query;
 
-            var items = query.Select(o => new { o.Id, o.Name, o.Template, o.Mode, o.Deployments, o.Size, o.Environment, o.CreatedAt, o.CreatedBy, o.ModifiedAt, o.ModifiedBy });
+            var items = query.Select(o => new { o.Id, o.Name, o.Template, o.Mode, o.Deployments, o.Size, o.Environment, o.Tags, o.CreatedAt, o.CreatedBy, o.ModifiedAt, o.ModifiedBy });
 
             var result = new List<ApplicationSummary>();
             var db = _connectionMultiplexer.GetDatabase();

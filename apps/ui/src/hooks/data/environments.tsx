@@ -10,6 +10,7 @@ import type {
 
 export interface EnvironmentSummary {
   name: string;
+  tags: string[];
   createdAt: string;
   createdBy: {
     name: string;
@@ -54,6 +55,7 @@ export interface EnvironmentItem {
   provisionStatus: string;
   definition: EnvironmentDefinition;
   health?: EnvironmentHealthItem;
+  tags: string[];
   createdAt: string;
   createdBy: {
     name: string;
@@ -212,6 +214,7 @@ export interface EnvironmentUsageItem {
   direction: SizeRecommendationDirection;
   provisionStatus: DeploymentProvisionStatus;
   executionStatus: DeploymentExecutionStatus;
+  tags: string[];
 }
 
 export function useGetEnvironmentUsage(environmentName?: string): UseGetResult<EnvironmentUsageItem[]> {

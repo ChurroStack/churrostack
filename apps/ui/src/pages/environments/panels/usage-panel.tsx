@@ -24,6 +24,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
+import { SearchAndFilter } from '@/components/search-and-filter';
+import { ApplicationsFilterContent } from '@/pages/applications/filters/applications-filter';
+import { useDebounce } from '@/hooks/use-debounce';
 
 function RecommendationCell({ usage }: { usage: EnvironmentUsageItem }) {
   const { t } = useTranslation();
@@ -144,6 +147,11 @@ const EnvironmentUsagePanel = ({
     dir: 'asc'
   });
 
+  const [searchValue, setSearchValue] = useState('');
+  const debouncedSearch = useDebounce(searchValue, 250).toLowerCase();
+  const [createdByFilter, setCreatedByFilter] = useState<string | undefined>(undefined);
+  const [tagsFilter, setTagsFilter] = useState<string[]>([]);
+
   const onSortChange = (key: SortKey) => {
     setSort((prev) => {
       if (prev.key === key) {
@@ -153,19 +161,29 @@ const EnvironmentUsagePanel = ({
     });
   };
 
-  const sortedUsage = useMemo(() => {
+  const filteredUsage = useMemo(() => {
     if (!usage) return undefined;
-    const rows = [...usage];
+    return usage.filter((row) => {
+      if (debouncedSearch && !row.applicationName.toLowerCase().includes(debouncedSearch)) return false;
+      if (createdByFilter && row.createdBy?.name !== createdByFilter) return false;
+      if (tagsFilter.length > 0 && !tagsFilter.every((t) => row.tags?.includes(t))) return false;
+      return true;
+    });
+  }, [usage, debouncedSearch, createdByFilter, tagsFilter]);
+
+  const sortedUsage = useMemo(() => {
+    if (!filteredUsage) return undefined;
+    const rows = [...filteredUsage];
     rows.sort((a, b) => {
       const cmp = compareRows(a, b, sort.key);
       return sort.dir === 'asc' ? cmp : -cmp;
     });
     return rows;
-  }, [usage, sort]);
+  }, [filteredUsage, sort]);
 
   const totals = useMemo(() => {
-    if (!usage?.length) return undefined;
-    return usage.reduce(
+    if (!filteredUsage?.length) return undefined;
+    return filteredUsage.reduce(
       (acc, r) => ({
         cpuAvg: acc.cpuAvg + r.cpuAvg,
         cpuMax: acc.cpuMax + r.cpuMax,
@@ -176,7 +194,7 @@ const EnvironmentUsagePanel = ({
       }),
       { cpuAvg: 0, cpuMax: 0, cpuP95: 0, memoryAvg: 0, memoryMax: 0, memoryP95: 0 }
     );
-  }, [usage]);
+  }, [filteredUsage]);
 
   useEffect(() => {
     fetchAsync('');
@@ -194,10 +212,28 @@ const EnvironmentUsagePanel = ({
 
   return (
     <div className="overflow-hidden rounded-md border flex flex-col min-h-0 w-full h-full">
-      <div className="flex flex-row justify-between py-2 px-2 items-center">
-        <h3 className="text-sm text-muted-foreground">
+      <div className="flex flex-row justify-between py-2 px-2 items-center gap-2">
+        <h3 className="text-sm text-muted-foreground flex-1 min-w-0 truncate">
           {t('Historic CPU and memory usage and recommended size per application')}
         </h3>
+        <div className="w-50 shrink-0">
+          <SearchAndFilter
+            searchValue={searchValue}
+            onSearchValueChange={setSearchValue}
+            placeholder={t('Search applications...')}
+            hasActiveFilter={tagsFilter.length > 0 || !!createdByFilter}
+            filterContent={
+              <ApplicationsFilterContent
+                createdBy={createdByFilter}
+                tags={tagsFilter}
+                permission="read"
+                hideEnvironment
+                onCreatedByChange={setCreatedByFilter}
+                onTagsChange={setTagsFilter}
+              />
+            }
+          />
+        </div>
         <Button variant="default" size="sm" disabled={isAnalyzing} onClick={onAnalyzeAll}>
           {isAnalyzing ? <Spinner /> : <Gauge />} {t('Analyze all')}
         </Button>
@@ -300,10 +336,12 @@ const EnvironmentUsagePanel = ({
                 </TableCell>
               </TableRow>
             ))}
-            {usage && usage.length === 0 && (
+            {sortedUsage && sortedUsage.length === 0 && (
               <TableRow>
                 <TableCell colSpan={10} className="text-center text-muted-foreground py-6">
-                  {t('No applications in this environment.')}
+                  {usage && usage.length > 0
+                    ? t('No applications match the current filters.')
+                    : t('No applications in this environment.')}
                 </TableCell>
               </TableRow>
             )}

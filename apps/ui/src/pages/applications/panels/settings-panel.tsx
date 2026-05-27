@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import TagChipsInput from '@/components/tag-chips-input';
 
 const ExtensionHandler = ({
   app,
@@ -149,6 +150,7 @@ const SettingsPanel = ({
   const [autoStartEnabled, setAutoStartEnabled] = useState<boolean>(!!app?.metadata?.autoStart?.enabled);
   const [autoStopEnabled, setAutoStopEnabled] = useState<boolean>(!!app?.metadata?.autoStop?.enabled);
   const [autoStopIdleMinutes, setAutoStopIdleMinutes] = useState<number>(app?.metadata?.autoStop?.idleMinutes ?? 60);
+  const [tags, setTags] = useState<string[]>(app?.tags ?? []);
 
   useEffect(() => {
     setSize(app?.size ?? undefined);
@@ -158,6 +160,7 @@ const SettingsPanel = ({
     setAutoStartEnabled(!!app?.metadata?.autoStart?.enabled);
     setAutoStopEnabled(!!app?.metadata?.autoStop?.enabled);
     setAutoStopIdleMinutes(app?.metadata?.autoStop?.idleMinutes ?? 60);
+    setTags(app?.tags ?? []);
   }, [app]);
 
   const setExtension = (extension: ApplicationExtensionItem) => {
@@ -204,6 +207,7 @@ const SettingsPanel = ({
                 size,
                 parameters,
                 extensions,
+                tags,
                 metadata: {
                   description,
                   autoStart: { enabled: autoStartEnabled },
@@ -282,6 +286,15 @@ const SettingsPanel = ({
           <Field>
             <FieldLabel>{t('Application description')}</FieldLabel>
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
+          </Field>
+        </FieldGroup>
+        <FieldGroup className="flex flex-row gap-2">
+          <Field>
+            <FieldLabel>{t('Tags')}</FieldLabel>
+            <FieldDescription>
+              {t('Lowercase letters, digits, hyphens or underscores (max 32 chars per tag).')}
+            </FieldDescription>
+            <TagChipsInput value={tags} onChange={setTags} />
           </Field>
         </FieldGroup>
         <FieldGroup className="flex flex-row gap-2">

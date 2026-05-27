@@ -26,7 +26,7 @@ namespace ChurrOS.Api.Controllers
         [Produces(MediaTypeNames.Application.Json)]
         [ProducesResponseType(typeof(QueryResult<EnvironmentSummary>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> GetEnvironments([FromQuery] QueryRequest query, CancellationToken cancellationToken)
+        public async Task<IActionResult> GetEnvironments([FromQuery] GetEnvironments.EnvironmentQueryRequest query, CancellationToken cancellationToken)
         {
             var result = await _mediator.Send(new GetEnvironments(query), cancellationToken);
             return Ok(result);

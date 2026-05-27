@@ -6,6 +6,7 @@ export interface GalleryAppSummary {
   type: string;
   description: string;
   path: string;
+  tags: string[];
 }
 
 export interface GalleryLlmSummary {

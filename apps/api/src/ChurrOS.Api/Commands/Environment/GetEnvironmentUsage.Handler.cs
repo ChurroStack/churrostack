@@ -46,6 +46,7 @@ namespace ChurrOS.Api.Commands.Environment
                     a.Id,
                     a.Name,
                     a.Size,
+                    a.Tags,
                     CreatedByName = a.CreatedBy != null ? a.CreatedBy.Name : null,
                     CreatedByDisplayName = a.CreatedBy != null ? a.CreatedBy.DisplayName : null,
                     CreatedByType = a.CreatedBy != null ? (IdentityType?)a.CreatedBy.Type : null,
@@ -94,6 +95,7 @@ namespace ChurrOS.Api.Commands.Environment
                     Direction = SizeRecommendation.NotAnalyzed,
                     ProvisionStatus = provisionStatus,
                     ExecutionStatus = executionStatus,
+                    Tags = app.Tags ?? Array.Empty<string>(),
                 };
 
                 if (recommendations.TryGetValue(app.Id, out var recommendation))
