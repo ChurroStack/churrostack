@@ -35,6 +35,7 @@ Canonical vocabulary docs live under [`docs/concepts/`](docs/concepts/). Read th
 
 - Prefer the simplest fix that solves the reported problem; do not introduce new config fields, abstractions, or specificity hacks before reading the relevant library/theming docs.
 - When a user says 'one-line fix', apply only that—do not refactor surrounding code.
+- UI loading/empty/error conventions live in [`apps/ui/AGENTS.md`](apps/ui/AGENTS.md#loading-empty-and-error-states-cards--tables--charts) — read before adding a new data-bound card, table, or chart.
 
 ## Postmortems
 

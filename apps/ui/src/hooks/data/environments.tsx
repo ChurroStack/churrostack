@@ -193,6 +193,10 @@ export function useRotateEnvironmentKeys(environmentName?: string) {
 
 export interface EnvironmentUsageItem {
   applicationName: string;
+  createdBy?: {
+    name: string;
+    displayName: string;
+  };
   currentSize?: ApplicationSize;
   recommendedSize?: ApplicationSize;
   cpuAvg: number;
