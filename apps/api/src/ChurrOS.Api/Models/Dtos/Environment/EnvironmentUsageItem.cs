@@ -1,5 +1,6 @@
 using ChurrOS.Api.Models.Dtos.Application;
 using ChurrOS.Api.Models.Dtos.Deployment;
+using ChurrOS.Api.Models.Dtos.Identity;
 using ChurrOS.Api.Utils;
 
 namespace ChurrOS.Api.Models.Dtos.Environment
@@ -10,6 +11,8 @@ namespace ChurrOS.Api.Models.Dtos.Environment
     public class EnvironmentUsageItem
     {
         public string ApplicationName { get; set; } = string.Empty;
+
+        public IdentitySummary? CreatedBy { get; set; }
 
         public SizeRequestItem? CurrentSize { get; set; }
 
@@ -52,8 +55,5 @@ namespace ChurrOS.Api.Models.Dtos.Environment
 
         /// <summary>Tags assigned to the application (drives the Usage-tab Tags filter).</summary>
         public string[] Tags { get; set; } = Array.Empty<string>();
-
-        /// <summary>Identity name of the application's creator (drives the Usage-tab "Created by" filter).</summary>
-        public string? CreatedBy { get; set; }
     }
 }
