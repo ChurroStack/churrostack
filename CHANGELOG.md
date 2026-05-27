@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0](https://github.com/ChurroStack/churrostack/compare/v1.3.0...v1.4.0) (2026-05-27)
+
+
+### Features
+
+* **tags:** filter applications and environments by tags ([#31](https://github.com/ChurroStack/churrostack/issues/31)) ([d7749fa](https://github.com/ChurroStack/churrostack/commit/d7749fa55df614e484d6c668a6a689c3c9ceb90b))
+* **ui:** env usage createdBy + LLM skeleton/Empty + fix -$0.00 ([#29](https://github.com/ChurroStack/churrostack/issues/29)) ([02e6084](https://github.com/ChurroStack/churrostack/commit/02e60848191818779dea57a46b5532897afb77c4))
+
 ## [1.3.0](https://github.com/ChurroStack/churrostack/compare/v1.2.1...v1.3.0) (2026-05-26)
 
 
