@@ -210,6 +210,8 @@ export interface EnvironmentUsageItem {
   direction: SizeRecommendationDirection;
   provisionStatus: DeploymentProvisionStatus;
   executionStatus: DeploymentExecutionStatus;
+  tags: string[];
+  createdBy?: string;
 }
 
 export function useGetEnvironmentUsage(environmentName?: string): UseGetResult<EnvironmentUsageItem[]> {

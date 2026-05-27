@@ -49,5 +49,11 @@ namespace ChurrOS.Api.Models.Dtos.Environment
         public DeploymentProvisionStatus ProvisionStatus { get; set; } = DeploymentProvisionStatus.Pending;
 
         public DeploymentExecutionStatus ExecutionStatus { get; set; } = DeploymentExecutionStatus.Stopped;
+
+        /// <summary>Tags assigned to the application (drives the Usage-tab Tags filter).</summary>
+        public string[] Tags { get; set; } = Array.Empty<string>();
+
+        /// <summary>Identity name of the application's creator (drives the Usage-tab "Created by" filter).</summary>
+        public string? CreatedBy { get; set; }
     }
 }

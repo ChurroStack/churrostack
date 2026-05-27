@@ -254,13 +254,17 @@ export default function Applications() {
               <span>{formatDistanceToNow(application.createdAt)}</span> {t('by')}{' '}
               <span>{application.createdBy?.name}</span>
             </div>
-            {application.environmentName && (
-              <div className="text-xs text-muted-foreground flex items-center gap-1">
-                <ServerCog className="size-3" />
-                <span className="truncate">{application.environmentName}</span>
+            {(application.environmentName || (application.tags?.length ?? 0) > 0) && (
+              <div className="text-xs text-muted-foreground flex flex-row flex-wrap items-center gap-x-2 gap-y-1 w-full">
+                {application.environmentName && (
+                  <span className="inline-flex items-center gap-1">
+                    <ServerCog className="size-3" />
+                    <span className="truncate max-w-40">{application.environmentName}</span>
+                  </span>
+                )}
+                <TagBadges tags={application.tags} />
               </div>
             )}
-            <TagBadges tags={application.tags} />
             {/* <div className="flex w-full items-center gap-2">
               <span>{mail.name}</span>{" "}
               <span className="ml-auto text-xs">{mail.date}</span>

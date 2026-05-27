@@ -46,6 +46,8 @@ namespace ChurrOS.Api.Commands.Environment
                     a.Id,
                     a.Name,
                     a.Size,
+                    a.Tags,
+                    CreatedByName = a.CreatedBy!.Name,
                     Deployments = a.Deployments!.Select(d => new { d.ProvisionStatus, d.ExecutionStatus }).ToList()
                 })
                 .ToListAsync(cancellationToken);
@@ -83,6 +85,8 @@ namespace ChurrOS.Api.Commands.Environment
                     Direction = SizeRecommendation.NotAnalyzed,
                     ProvisionStatus = provisionStatus,
                     ExecutionStatus = executionStatus,
+                    Tags = app.Tags ?? Array.Empty<string>(),
+                    CreatedBy = app.CreatedByName,
                 };
 
                 if (recommendations.TryGetValue(app.Id, out var recommendation))
