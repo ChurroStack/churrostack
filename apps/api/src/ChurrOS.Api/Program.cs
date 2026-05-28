@@ -63,6 +63,13 @@ namespace ChurrOS.Api
             builder.WebHost.ConfigureKestrel(serverOptions =>
             {
                 serverOptions.Limits.MaxRequestBodySize = 10_000_000_000;
+                // Microsoft Entra ID auth codes (1–4 KB) plus the encrypted ASP.NET
+                // state in /oauth/callback/microsoft can push the request line past
+                // Kestrel's 8 KB default and surface as ERR_CONNECTION_CLOSED. Same
+                // story for the accumulated correlation/nonce cookies on the same
+                // request.
+                serverOptions.Limits.MaxRequestLineSize = 32 * 1024;
+                serverOptions.Limits.MaxRequestHeadersTotalSize = 64 * 1024;
             });
 
             builder.Services.Configure<FormOptions>(o =>
@@ -120,6 +127,12 @@ namespace ChurrOS.Api
             {
                 options.ForwardedHeaders =
                     ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+                // ASP.NET trusts only loopback by default; in container/k8s
+                // deployments the upstream proxy may sit on a different
+                // network. Clearing both lists honours X-Forwarded-* from any
+                // upstream so the middleware reorder below is load-bearing.
+                options.KnownNetworks.Clear();
+                options.KnownProxies.Clear();
             });
             builder.Services.AddStackExchangeRedisCache(options =>
             {
@@ -161,9 +174,22 @@ namespace ChurrOS.Api
                     name: "Default",
                     policy =>
                     {
-                        policy.WithOrigins(builder.Configuration["Cors:Origins"]!.Split(',', StringSplitOptions.RemoveEmptyEntries))
-                        .AllowAnyHeader()
-                        .AllowAnyMethod();
+                        var origins = builder.Configuration["Cors:Origins"]!
+                            .Split(',', StringSplitOptions.RemoveEmptyEntries);
+                        policy.WithOrigins(origins)
+                            .AllowAnyHeader()
+                            .AllowAnyMethod();
+                        // Credentials (the .AspNetCore.Cookies session co-issued by
+                        // /oauth/token) require an explicit origin allow-list — the
+                        // CORS spec forbids combining wildcard with credentials and
+                        // ASP.NET throws InvalidOperationException at startup if both
+                        // are set. Dev / permissive deployments with "*" therefore
+                        // skip AllowCredentials; production deployments configure
+                        // specific origins and get the cookie session over CORS.
+                        if (!origins.Contains("*"))
+                        {
+                            policy.AllowCredentials();
+                        }
                     }
                 );
             });
@@ -574,10 +600,22 @@ namespace ChurrOS.Api
             app.UseSwaggerUI();
             app.MapOpenApi();
 
+            // ForwardedHeaders MUST run before HttpsRedirection so the
+            // middleware can read X-Forwarded-Proto from the upstream proxy
+            // (nginx proxies HTTP to Kestrel) and flip Request.Scheme to
+            // "https". Without this order, HttpsRedirection sees raw scheme
+            // "http" on every proxied request and issues a 307 — surfacing as
+            // ERR_TOO_MANY_REDIRECTS or ERR_CONNECTION_CLOSED depending on the
+            // CDN/WAF in front.
+            app.UseForwardedHeaders();
 #if !DEBUG
             app.UseHttpsRedirection();
 #endif
-            app.UseForwardedHeaders();
+            // Defence-in-depth: if X-Forwarded-Proto is ever stripped upstream
+            // or UseForwardedHeaders is bypassed by a topology change, force
+            // the scheme to https so URL generation (OIDC redirect URIs,
+            // links, Set-Cookie Secure decisions) doesn't leak the
+            // proxy-internal http:// scheme to clients.
             app.Use((context, next) =>
             {
                 context.Request.Scheme = "https";

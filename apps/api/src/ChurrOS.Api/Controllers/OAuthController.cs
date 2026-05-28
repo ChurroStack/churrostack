@@ -4,6 +4,7 @@ using ChurrOS.Api.Utils;
 using ChurrOS.Api.Utils.AspNet;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -30,6 +31,7 @@ namespace ChurrOS.Api.Controllers
         private readonly UserManager<OpenIdUser> _userManager;
         private readonly ICacheService _cacheService;
         private readonly IConfiguration _configuration;
+        private readonly ILogger<OAuthController> _logger;
 
         public OAuthController(
             IOpenIddictApplicationManager applicationManager,
@@ -38,7 +40,8 @@ namespace ChurrOS.Api.Controllers
             SignInManager<OpenIdUser> signInManager,
             UserManager<OpenIdUser> userManager,
             ICacheService cacheService,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            ILogger<OAuthController> logger)
         {
             _applicationManager = applicationManager;
             _authorizationManager = authorizationManager;
@@ -47,7 +50,58 @@ namespace ChurrOS.Api.Controllers
             _userManager = userManager;
             _cacheService = cacheService;
             _configuration = configuration;
+            _logger = logger;
         }
+
+        // Co-issues a CookieAuthenticationDefaults session alongside the OAuth tokens.
+        // Required so `window.open('/share/{app}/{port}/')` (a top-level navigation
+        // that cannot present an Authorization: Bearer header) is authenticated by
+        // `AppCookiePolicy`. NameClaimType must match the JWT path (Program.cs:393)
+        // so `Identity.Name` resolves to `preferred_username` in both flows.
+        //
+        // Claims policy: copies the full source identity so AspNet.Identity's
+        // SecurityStamp survives — the Cookie scheme relies on it for
+        // out-of-band revocation. The JWT path's GetDestinations filter does
+        // NOT apply here; if a future identity gains a sensitive claim that
+        // must not enter the cookie, scrub it explicitly before calling this
+        // helper.
+        //
+        // Lifetime: AllowRefresh=false so SlidingExpiration on the Cookie
+        // scheme does not extend the cookie indefinitely. The cookie's
+        // 8 h absolute expiry is bounded by the explicit re-issue on every
+        // Authorize/refresh-token Exchange, keeping it within JWT refresh
+        // distance instead of drifting on idle /share/* traffic.
+        private async Task IssueCookieSessionAsync(ClaimsIdentity sourceIdentity, string flow)
+        {
+            var cookieIdentity = new ClaimsIdentity(
+                sourceIdentity.Claims,
+                authenticationType: TokenValidationParameters.DefaultAuthenticationType,
+                nameType: Claims.PreferredUsername,
+                roleType: Claims.Role);
+
+            await HttpContext.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                new ClaimsPrincipal(cookieIdentity),
+                new AuthenticationProperties
+                {
+                    IsPersistent = true,
+                    ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8),
+                    AllowRefresh = false
+                });
+
+            _logger.LogDebug(
+                "[oauth.cookie.signin] flow={Flow} sub={Sub} tid={Tid}",
+                flow,
+                cookieIdentity.FindFirst(Claims.Subject)?.Value,
+                cookieIdentity.FindFirst("tid")?.Value);
+        }
+
+        // Coarse heuristic for "this token request came from a browser".
+        // Used to skip the co-issued cookie on CLI / service-to-service
+        // refresh-token calls. Any incoming cookie at all (including
+        // session/Identity cookies set during the original interactive
+        // login) means it's worth co-issuing the share-app session cookie.
+        private bool RequestLooksBrowserDriven() => HttpContext.Request.Cookies.Count > 0;
 
         [HttpGet("login")]
         public IActionResult Login(string? redirectUri = null, string? prompt = null)
@@ -86,6 +140,10 @@ namespace ChurrOS.Api.Controllers
 
             // Delete cookie used during external authentication
             await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+
+            // Delete the co-issued application session cookie minted by
+            // Authorize/Exchange so logout clears /share/* access too.
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
             // Returning a SignOutResult will ask OpenIddict to redirect the user agent
             // to the post_logout_redirect_uri specified by the client application or to
@@ -167,6 +225,19 @@ namespace ChurrOS.Api.Controllers
                 identity.SetClaim("tid", accountId.ToString());
 
                 identity.SetDestinations(GetDestinations);
+
+                // Refresh the co-issued cookie session so it tracks JWT refresh
+                // lifetime instead of decaying independently. Skipped for the
+                // client_credentials and token_exchange branches below — those
+                // are not browser-driven. Also skipped when the refresh-token
+                // request shows no sign of being browser-driven (CLI / service
+                // calls), so we don't ship Set-Cookie to clients that can't use it.
+                if (request.IsAuthorizationCodeGrantType() || RequestLooksBrowserDriven())
+                {
+                    await IssueCookieSessionAsync(
+                        identity,
+                        request.IsRefreshTokenGrantType() ? "refresh" : "authorization_code");
+                }
 
                 // Returning a SignInResult will ask OpenIddict to issue the appropriate access/identity tokens.
                 return SignIn(new ClaimsPrincipal(identity), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
@@ -426,6 +497,8 @@ namespace ChurrOS.Api.Controllers
 
             // TODO: If external cookie is removed the user needs to enter credentials again when page refresh. Review convenience.
             // await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+
+            await IssueCookieSessionAsync(identity, "authorize");
 
             return SignIn(new ClaimsPrincipal(identity), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
