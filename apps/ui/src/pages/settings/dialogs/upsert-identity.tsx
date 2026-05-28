@@ -79,6 +79,9 @@ export function useUpsertIdentityModalModel({ identity, onClose, onSave }: Upser
   const editing = !!identity;
 
   const formSchema = createFormSchema(t);
+  // `values` makes useGet.data the form's single source of truth on edit, avoiding
+  // a useEffect that races fetchAsync. keepDirtyValues preserves in-progress user
+  // edits if the GET resolves after they start typing.
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: standardSchemaResolver(formSchema),
     defaultValues: {
@@ -88,7 +91,9 @@ export function useUpsertIdentityModalModel({ identity, onClose, onSave }: Upser
       role: 'user',
       accessMode: 'readOnly',
       assigned: []
-    }
+    },
+    values: data,
+    resetOptions: { keepDirtyValues: true }
   });
 
   const type = form.watch('type');
@@ -96,22 +101,8 @@ export function useUpsertIdentityModalModel({ identity, onClose, onSave }: Upser
   useEffect(() => {
     if (identity) {
       fetchAsync('', identity.name);
-    } else {
-      form.reset();
-      reset();
     }
   }, [identity]);
-
-  useEffect(() => {
-    if (data) {
-      form.reset(data);
-      form.setValue('role', data.role);
-      form.setValue('type', data.type);
-    } else {
-      form.reset();
-      reset();
-    }
-  }, [data]);
 
   useEffect(() => {
     if (type && !editing) {
@@ -164,22 +155,17 @@ export function useUpsertIdentityModalModel({ identity, onClose, onSave }: Upser
   };
 
   const onAddAssigned = (identityName: string[]) => {
-    const assigned = form.getValues('assigned') ?? [];
-    identityName.forEach((name) => {
-      if (!assigned.includes(name)) {
-        assigned.push(name);
-      }
-    });
-    form.setValue('assigned', assigned);
+    // New array reference + shouldDirty: needed so form.watch re-renders and
+    // keepDirtyValues protects the edit against any future data resync.
+    const current = form.getValues('assigned') ?? [];
+    const next = [...current, ...identityName.filter((name) => !current.includes(name))];
+    form.setValue('assigned', next, { shouldDirty: true });
   };
 
   const onRemoveAssigned = (identityName: string) => {
-    const assigned = form.getValues('assigned') ?? [];
-    const index = assigned.findIndex((item) => item === identityName);
-    if (index !== -1) {
-      assigned.splice(index, 1);
-      form.setValue('assigned', assigned);
-    }
+    const current = form.getValues('assigned') ?? [];
+    const next = current.filter((item) => item !== identityName);
+    form.setValue('assigned', next, { shouldDirty: true });
   };
 
   function onCancel() {
