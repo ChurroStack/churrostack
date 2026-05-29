@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.1](https://github.com/ChurroStack/churrostack/compare/v1.4.0...v1.4.1) (2026-05-28)
+
+
+### Bug Fixes
+
+* **api:** co-issue cookie session for /share/* and harden proxy/CORS ([#34](https://github.com/ChurroStack/churrostack/issues/34)) ([8d84652](https://github.com/ChurroStack/churrostack/commit/8d846521967f32a5d18f4c887babab8bcc99b6da))
+* **ui:** populate identity editor on edit + allow member changes ([#32](https://github.com/ChurroStack/churrostack/issues/32)) ([2973abd](https://github.com/ChurroStack/churrostack/commit/2973abdc57ffce4adb54106ff73f2c33ef734196))
+
 ## [1.4.0](https://github.com/ChurroStack/churrostack/compare/v1.3.0...v1.4.0) (2026-05-27)
 
 
