@@ -4,12 +4,13 @@ namespace ChurrOS.Api.Services.AutoStart
     {
         public const double CpuActivityCores = 0.05;
 
-        public static readonly TimeSpan HoldTimeout = TimeSpan.FromSeconds(60);
+        public static readonly TimeSpan HoldTimeout = TimeSpan.FromSeconds(300);
         public static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(500);
 
-        // Must comfortably exceed the per-env start lock TTL (120 s) in StartApplicationHandler
-        // so a single-flight leader cannot expire mid-start and let a second leader fire.
-        public static readonly TimeSpan InflightTtl = TimeSpan.FromSeconds(180);
+        // Must exceed both the per-env start lock TTL (120 s) in StartApplicationHandler
+        // and the HoldTimeout (300 s) so a single-flight leader cannot expire mid-start
+        // and let a second leader fire while followers are still holding.
+        public static readonly TimeSpan InflightTtl = TimeSpan.FromSeconds(420);
 
         public static readonly TimeSpan CooldownTtl = TimeSpan.FromSeconds(60);
         public static readonly TimeSpan RunningTtl = TimeSpan.FromHours(24);
