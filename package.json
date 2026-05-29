@@ -1,6 +1,6 @@
 {
   "name": "@churrostack/source",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "private": true,
   "packageManager": "pnpm@11.1.2",
   "scripts": {
