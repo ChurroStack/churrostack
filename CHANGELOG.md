@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/ChurroStack/churrostack/compare/v1.4.1...v1.4.2) (2026-05-29)
+
+
+### Bug Fixes
+
+* **api:** harden scheduler auto-start with longer hold + Polly retry ([#35](https://github.com/ChurroStack/churrostack/issues/35)) ([2e8da74](https://github.com/ChurroStack/churrostack/commit/2e8da74d3fb854c071a2588574f362cd964bf30e))
+
 ## [1.4.1](https://github.com/ChurroStack/churrostack/compare/v1.4.0...v1.4.1) (2026-05-28)
 
 
