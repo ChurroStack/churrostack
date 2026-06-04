@@ -412,7 +412,8 @@ export function useGetApplicationTraces(appName: string): UseGetResult<QueryResu
 
 export function useGetApplicationMetric(appName: string, metricName: string): UseGetResult<MetricItem> {
   const { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset } = useGet<MetricItem>(
-    `/api/applications/${appName}/metrics/${metricName}`
+    `/api/applications/${appName}/metrics/${metricName}`,
+    { resetDataOnQueryChange: true }
   );
   return {
     isFetching,
@@ -432,7 +433,7 @@ export function useGetApplicationUsage(
 ): UseGetResult<QueryResult<ApplicationUsageItem>> {
   const { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset } = useGet<
     QueryResult<ApplicationUsageItem>
-  >(`/api/applications/${appName}/usage/${groupBy}`);
+  >(`/api/applications/${appName}/usage/${groupBy}`, { resetDataOnQueryChange: true });
   return {
     isFetching,
     isSuccess,

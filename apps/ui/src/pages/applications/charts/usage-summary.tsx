@@ -1,5 +1,7 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatBytes, formatDateTime } from '@/extensions';
@@ -16,7 +18,7 @@ import {
   type SortingState,
   type VisibilityState
 } from '@tanstack/react-table';
-import { AlertCircle, RefreshCcw } from 'lucide-react';
+import { AlertCircle, Receipt, RefreshCcw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -130,23 +132,36 @@ const ApplicationUsage = ({
           ))}
         </TableHeader>
         <TableBody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                {t('No results')}
-              </TableCell>
-            </TableRow>
-          )}
+          {!usageData
+            ? Array.from({ length: 6 }).map((_, i) => (
+                <TableRow key={`skel-${i}`}>
+                  <TableCell colSpan={columns.length}>
+                    <Skeleton className="h-6 w-full" />
+                  </TableCell>
+                </TableRow>
+              ))
+            : table.getRowModel().rows?.length
+              ? table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              : null}
         </TableBody>
       </Table>
+      {usageData && table.getRowModel().rows.length === 0 && (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Receipt />
+            </EmptyMedia>
+            <EmptyTitle>{t('No usage in this period')}</EmptyTitle>
+            <EmptyDescription>{t('Adjust the date range or filters to see results.')}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      )}
     </div>
   );
 };

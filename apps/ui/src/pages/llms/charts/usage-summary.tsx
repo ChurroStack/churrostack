@@ -107,7 +107,7 @@ const LlmUsage = ({
   identityName?: string;
   userId?: string;
   model?: string;
-  onData?: (rows: LlmUsageSummaryItem[]) => void;
+  onData?: (rows: LlmUsageSummaryItem[] | undefined) => void;
   onError?: (error: string | undefined) => void;
 }) => {
   const {
@@ -157,10 +157,11 @@ const LlmUsage = ({
     fetchUsageAsync();
   }, [fetchUsageAsync]);
 
+  // Propagate undefined too: when the time range / filters change, the hook resets usageData to
+  // undefined so the KPI cards (which read this via panel state) fall back to their skeleton
+  // instead of showing the previous period's totals.
   useEffect(() => {
-    if (usageData?.items) {
-      onData?.(usageData.items);
-    }
+    onData?.(usageData?.items);
   }, [usageData, onData]);
 
   useEffect(() => {
