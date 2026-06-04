@@ -31,7 +31,7 @@ export type UseGetResult<T> = {
 
 export const baseUrl = `${window.location.protocol}//${window.location.host}${import.meta.env.VITE_API_BASE_URL || import.meta.env.BASE_URL || ''}`;
 
-export function useGet<T>(basePath: string): UseGetResult<T> {
+export function useGet<T>(basePath: string, options?: { resetDataOnQueryChange?: boolean }): UseGetResult<T> {
   const [isFetching, setIsFetching] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
   const [isError, setIsError] = useState<boolean>(false);
@@ -41,6 +41,12 @@ export function useGet<T>(basePath: string): UseGetResult<T> {
   // Tracks the latest in-flight controller so a new fetchAsync call aborts the previous one
   // (last-write-wins) and unmount cancels whatever is pending.
   const controllerRef = useRef<AbortController | null>(null);
+  // Identifies the params behind the currently-held `data`. When the caller opts into
+  // resetDataOnQueryChange, a fetch with a *different* key (time range / filters / entity)
+  // clears `data` so `data === undefined` skeleton probes fire — while an identical-key
+  // refetch (manual refresh) keeps the data on screen to avoid flicker.
+  const lastQueryKeyRef = useRef<string | null>(null);
+  const resetDataOnQueryChange = options?.resetDataOnQueryChange ?? false;
 
   useEffect(() => {
     return () => {
@@ -55,6 +61,16 @@ export function useGet<T>(basePath: string): UseGetResult<T> {
       const controller = new AbortController();
       controllerRef.current = controller;
       const isStale = () => controllerRef.current !== controller || controller.signal.aborted;
+
+      // Invalidate held data when the query identity changes (basePath carries the entity id —
+      // e.g. llmId/appName — so switching entity at the same range still resets). Done before the
+      // OIDC awaits so the skeleton appears immediately rather than after a token round-trip.
+      const queryKey = `${basePath}|${path ?? ''}?${queryString}`;
+      if (resetDataOnQueryChange && queryKey !== lastQueryKeyRef.current) {
+        setData(undefined);
+        setIsSuccess(false);
+      }
+      lastQueryKeyRef.current = queryKey;
 
       let result: Response<T> = { data: undefined, error: undefined };
 
@@ -108,7 +124,7 @@ export function useGet<T>(basePath: string): UseGetResult<T> {
       }
       return result;
     },
-    [basePath]
+    [basePath, resetDataOnQueryChange]
   );
 
   const reset = () => {

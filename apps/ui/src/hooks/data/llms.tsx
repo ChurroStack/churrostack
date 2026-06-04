@@ -202,7 +202,9 @@ export function useDeleteLlm() {
 // avoids JS Number precision issues with IdGen snowflake longs.
 export function useGetLlmMetric(llmId: string | undefined, metricName: string): UseGetResult<MetricItem> {
   const path = llmId ? `/api/llms/${llmId}/metrics/${metricName}` : `/api/llms/metrics/${metricName}`;
-  const { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset } = useGet<MetricItem>(path);
+  const { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset } = useGet<MetricItem>(path, {
+    resetDataOnQueryChange: true
+  });
   return {
     isFetching,
     isSuccess,
@@ -219,7 +221,7 @@ export function useGetLlmUsage(llmId: string | undefined, groupBy: string): UseG
   const path = llmId ? `/api/llms/${llmId}/usage/${groupBy}` : `/api/llms/usage/${groupBy}`;
   const { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset } = useGet<
     QueryResult<LlmUsageSummaryItem>
-  >(path);
+  >(path, { resetDataOnQueryChange: true });
   return {
     isFetching,
     isSuccess,
