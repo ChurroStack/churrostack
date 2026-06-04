@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.3](https://github.com/ChurroStack/churrostack/compare/v1.4.2...v1.4.3) (2026-06-04)
+
+
+### Bug Fixes
+
+* **api:** stop replaying stale gauge metrics for dead pods ([#39](https://github.com/ChurroStack/churrostack/issues/39)) ([635f51e](https://github.com/ChurroStack/churrostack/commit/635f51ec69fe9cba997d1c201d12178588b1cc3b))
+* **ui:** invalidate monitoring widgets on time-range/filter change ([#37](https://github.com/ChurroStack/churrostack/issues/37)) ([e21b12a](https://github.com/ChurroStack/churrostack/commit/e21b12a28ec5f7982dd36aa26d03a01f565f1fd4))
+
 ## [1.4.2](https://github.com/ChurroStack/churrostack/compare/v1.4.1...v1.4.2) (2026-05-29)
 
 
