@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/ChurroStack/churrostack/compare/v1.5.0...v1.6.0) (2026-06-11)
+
+
+### Features
+
+* **ui:** add read-only Resources tab to environment detail ([#42](https://github.com/ChurroStack/churrostack/issues/42)) ([92b3319](https://github.com/ChurroStack/churrostack/commit/92b331947f39a4716d9d368723257dfe537d5af2))
+
 ## [1.5.0](https://github.com/ChurroStack/churrostack/compare/v1.4.3...v1.5.0) (2026-06-11)
 
 
