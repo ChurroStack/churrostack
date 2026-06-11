@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/ChurroStack/churrostack/compare/v1.4.3...v1.5.0) (2026-06-11)
+
+
+### Features
+
+* **storage:** multi-mount storage with environment-controlled host paths ([#40](https://github.com/ChurroStack/churrostack/issues/40)) ([3aec807](https://github.com/ChurroStack/churrostack/commit/3aec807acbe6268ba2d87aeb2b4e5a86d5a84487))
+
 ## [1.4.3](https://github.com/ChurroStack/churrostack/compare/v1.4.2...v1.4.3) (2026-06-04)
 
 
