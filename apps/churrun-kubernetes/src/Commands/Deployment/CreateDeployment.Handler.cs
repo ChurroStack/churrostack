@@ -20,15 +20,17 @@ namespace ChurrunKubernetes.Commands.Deployment
         private readonly KubernetesService _kubernetesService;
         private readonly ChurrunDbContext _dbContext;
         private readonly ProxyConfigurationProvider _proxyConfigurationProvider;
+        private readonly ILogger<CreateDeploymentHandler> _logger;
         private static object _obj = new object();
 
-        public CreateDeploymentHandler(IMediator mediator, TemplateService templateService, KubernetesService kubernetesService, ProxyConfigurationProvider proxyConfigurationProvider, ChurrunDbContext dbContext)
+        public CreateDeploymentHandler(IMediator mediator, TemplateService templateService, KubernetesService kubernetesService, ProxyConfigurationProvider proxyConfigurationProvider, ChurrunDbContext dbContext, ILogger<CreateDeploymentHandler> logger)
         {
             _mediator = mediator;
             _templateService = templateService;
             _kubernetesService = kubernetesService;
             _proxyConfigurationProvider = proxyConfigurationProvider;
             _dbContext = dbContext;
+            _logger = logger;
         }
 
         public async ValueTask<DeploymentSummary> Handle(CreateDeployment request, CancellationToken cancellationToken)
@@ -122,6 +124,35 @@ namespace ChurrunKubernetes.Commands.Deployment
             // Get environment info
             var environment = await _mediator.Send(new GetEnvironment(), cancellationToken);
             var basePath = $"/share/{request.Body.AppName}";
+
+            // Defense in depth: any extension requesting a hostPath mount must target a
+            // managed path declared in the environment catalog. The runner has no
+            // ChurroStack identity, so per-user access is enforced by the API at save
+            // time; here we only ensure the path is one the environment exposes.
+            var managedHostPaths = new HashSet<string>(
+                (environment.HostPaths ?? []).Select(o => o.Path),
+                StringComparer.Ordinal);
+            foreach (var extension in extensions)
+            {
+                if (extension.Parameters is null ||
+                    !extension.Parameters.TryGetValue("hostPath", out var hostPathValues))
+                {
+                    continue;
+                }
+                var requestedHostPath = hostPathValues?.FirstOrDefault();
+                if (string.IsNullOrWhiteSpace(requestedHostPath))
+                {
+                    continue;
+                }
+                if (!managedHostPaths.Contains(requestedHostPath))
+                {
+                    _logger.LogWarning("Storage hostPath denied app={AppName} deployment={Deployment} extension={Extension} path={HostPath} reason=unmanaged",
+                        request.Body.AppName, request.Body.Name, extension.Name, requestedHostPath);
+                    throw new HttpException(403, $"Host path '{requestedHostPath}' is not allowed in this environment.");
+                }
+                _logger.LogInformation("Storage hostPath allowed app={AppName} deployment={Deployment} extension={Extension} path={HostPath}",
+                    request.Body.AppName, request.Body.Name, extension.Name, requestedHostPath);
+            }
 
             // Render base template
             var jsonBaseArgs = new JsonObject();

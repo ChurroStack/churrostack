@@ -136,6 +136,27 @@ export function useGetEnvironment(environmentName?: string): UseGetResult<Enviro
   };
 }
 
+export interface AllowedHostPathItem {
+  path: string;
+  title?: string;
+}
+
+export function useGetEnvironmentHostPaths(environmentName?: string): UseGetResult<AllowedHostPathItem[]> {
+  const { isFetching, isSuccess, statusCode, isError, error, data, fetchAsync, reset } = useGet<AllowedHostPathItem[]>(
+    environmentName ? `/api/environments/${environmentName.replace(/^\/+/, '')}/host-paths` : `/api/environments`
+  );
+  return {
+    isFetching,
+    isSuccess,
+    statusCode,
+    isError,
+    error,
+    data,
+    fetchAsync,
+    reset
+  };
+}
+
 export function useUpdateEnvironment(path?: string) {
   const { isFetching, isSuccess, statusCode, isError, error, data, patchAsync, reset } = usePatch<EnvironmentItem>(
     path ? `/api/environments/${path.replace(/^\/+/, '')}` : `/api/environments`,

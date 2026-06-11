@@ -43,6 +43,7 @@ namespace ChurrunKubernetes.Commands.Environment
                 );
 
                 var sizes = new List<SizeDefinition>();
+                var hostPaths = new List<HostPathDefinition>();
 
                 var sizeFile = "/app/sizes.yaml";
 #if DEBUG
@@ -63,6 +64,14 @@ namespace ChurrunKubernetes.Commands.Environment
                             sizes.AddRange(sizeDefinitions);
                         }
                     }
+                    if (jsonSizes.TryGetProperty("hostPaths", out var hostPathsElement))
+                    {
+                        var hostPathDefinitions = JsonSerializer.Deserialize<HostPathDefinition[]>(hostPathsElement.GetRawText(), JsonSettings.Value);
+                        if (hostPathDefinitions != null)
+                        {
+                            hostPaths.AddRange(hostPathDefinitions);
+                        }
+                    }
                 }
 
                 if (sizes.Count == 0)
@@ -81,7 +90,10 @@ namespace ChurrunKubernetes.Commands.Environment
                     limits: limits,
                     sizes: sizes.ToArray(),
                     translation: null
-                );
+                )
+                {
+                    HostPaths = hostPaths.ToArray()
+                };
 
                 return result;
             });

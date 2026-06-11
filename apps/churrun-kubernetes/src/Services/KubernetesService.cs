@@ -199,6 +199,29 @@ namespace ChurrunKubernetes.Services
             return deployments.Select(o => o.Name()).ToArray();
         }
 
+        public async Task DeletePvManifest(string name)
+        {
+            // PersistentVolume is cluster-scoped (no namespace).
+            await _client.DeletePersistentVolumeAsync(name);
+        }
+
+        public async Task<string[]> GetPvsManifests((string AnnotationKey, string? AnnotationValue)[] filter)
+        {
+            // PersistentVolume is cluster-scoped; isolate ours by the churrostack annotations.
+            var result = await _client.ListPersistentVolumeAsync();
+
+            IEnumerable<V1PersistentVolume> volumes = result.Items;
+            foreach (var filterItem in filter)
+            {
+                volumes = volumes
+                    .Where(d => d.Metadata?.Annotations != null &&
+                            d.Metadata.Annotations.ContainsKey(filterItem.AnnotationKey) &&
+                            (filterItem.AnnotationValue == null || d.Metadata.Annotations[filterItem.AnnotationKey] == filterItem.AnnotationValue));
+            }
+
+            return volumes.Select(o => o.Name()).ToArray();
+        }
+
         public async Task<string[]> GetDeploymentsManifests(string @namespace, (string AnnotationKey, string? AnnotationValue)[] filter)
         {
             var result = await _client.ListNamespacedDeploymentAsync(@namespace);
@@ -367,6 +390,30 @@ namespace ChurrunKubernetes.Services
                                 await _client.ReplaceNamespacedConfigMapAsync(configMap, configMap.Name(), configMap.Metadata.NamespaceProperty);
                             }
                             else
+                            {
+                                throw;
+                            }
+                        }
+                        break;
+                    case "PersistentVolume":
+                        var pv = KubernetesYaml.Deserialize<V1PersistentVolume>(doc);
+                        if (annotations is not null)
+                        {
+                            foreach (var annotation in annotations)
+                            {
+                                pv.SetAnnotation(annotation.Key, annotation.Value);
+                            }
+                        }
+                        try
+                        {
+                            // PersistentVolume is cluster-scoped (no namespace).
+                            await _client.CreatePersistentVolumeAsync(pv);
+                        }
+                        catch (HttpOperationException ex)
+                        {
+                            // A bound PV's spec (capacity, hostPath, claimRef) is largely
+                            // immutable; if it already exists keep it to preserve data.
+                            if (ex.Response.StatusCode != System.Net.HttpStatusCode.Conflict)
                             {
                                 throw;
                             }

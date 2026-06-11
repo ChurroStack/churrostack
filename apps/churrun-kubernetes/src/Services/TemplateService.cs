@@ -3,6 +3,8 @@ using Json.Patch;
 using Newtonsoft.Json.Linq;
 using Scriban;
 using Scriban.Runtime;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using YamlDotNet.Serialization;
 using YamlDotNet.System.Text.Json;
@@ -50,6 +52,11 @@ namespace ChurrunKubernetes.Services
             scriptObject.Import("trim", (string? text, string chr) => text?.Trim(chr[0]) ?? "");
             scriptObject.Import("trim_start", (string? text, string chr) => text?.TrimStart(chr[0]) ?? "");
             scriptObject.Import("trim_end", (string? text, string chr) => text?.TrimEnd(chr[0]) ?? "");
+            // Short, DNS-safe digest used to content-address resources by a value
+            // (e.g. a storage hostPath) so a changed value yields a new resource name.
+            scriptObject.Import("md5", (string? text) =>
+                Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(text ?? string.Empty)))
+                    .ToLowerInvariant()[..10]);
             return scriptObject;
         }
 

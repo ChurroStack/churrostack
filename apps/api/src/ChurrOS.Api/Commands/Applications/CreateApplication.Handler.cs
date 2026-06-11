@@ -94,6 +94,7 @@ namespace ChurrOS.Api.Commands.Applications
             ));
 
             var appTemplate = await _mediator.Send(new GetTemplateByName(request.Body.Template, environmentRef.Type), cancellationToken);
+            var requestedHostPaths = new List<string>();
             if (appTemplate?.Definition?.Extensions is not null)
             {
                 foreach (var templateExtension in appTemplate.Definition.Extensions)
@@ -104,6 +105,11 @@ namespace ChurrOS.Api.Commands.Applications
                     var extensionTemplateId = await _mediator.Send(new GetTemplateIdByName(tempateName, environmentRef.Type), cancellationToken);
 
                     var extensionsFromRequest = request.Body.Extensions?.Where(e => e.Name == templateExtension.Name).FirstOrDefault();
+                    var extensionParameters = DeployApplicationHandler.ParseParameters(extensionsFromRequest?.Enabled ?? false, templateExtension.Name, extensionTemplate.Definition.Parameters, extensionsFromRequest?.Parameters, templateExtension.Parameters?.ToDictionary(o => o.Key, o => o.Value is Array ? (string[])o.Value : [o.Value?.ToString()!]));
+                    if (extensionParameters.TryGetValue("hostPath", out var hostPathValues) && !string.IsNullOrWhiteSpace(hostPathValues?.FirstOrDefault()))
+                    {
+                        requestedHostPaths.Add(hostPathValues.First());
+                    }
                     _context.Set<Domain.ApplicationExtension>().Add(new ApplicationExtension(
                         accountId: _tenantResolver.AccountId,
                         environmentId: environmentRef.Id,
@@ -111,7 +117,7 @@ namespace ChurrOS.Api.Commands.Applications
                         templateId: extensionTemplateId,
                         name: templateExtension.Name,
                         enabled: extensionsFromRequest?.Enabled ?? false,
-                        parameters: DeployApplicationHandler.ParseParameters(extensionsFromRequest?.Enabled ?? false, templateExtension.Name, extensionTemplate.Definition.Parameters, extensionsFromRequest?.Parameters, templateExtension.Parameters?.ToDictionary(o => o.Key, o => o.Value is Array ? (string[])o.Value : [o.Value?.ToString()!])),
+                        parameters: extensionParameters,
                         createdAt: now,
                         createdById: _context.IdentityId,
                         modifiedAt: now,
@@ -120,6 +126,9 @@ namespace ChurrOS.Api.Commands.Applications
                     );
                 }
             }
+
+            // Enforce the same user-scoped host-path gate as application update.
+            await _mediator.Send(new EnsureHostPathsAllowed(request.Body.Environment, requestedHostPaths), cancellationToken);
 
             await _context.SaveChangesAsync(cancellationToken);
 

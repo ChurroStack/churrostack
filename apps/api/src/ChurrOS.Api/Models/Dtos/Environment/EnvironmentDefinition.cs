@@ -32,6 +32,11 @@
         public EnvironmentSizeDefinition[]? Sizes { get; set; }
 
         /// <summary>
+        /// Host paths the environment exposes for "Map to" storage mounts.
+        /// </summary>
+        public EnvironmentHostPathDefinition[]? HostPaths { get; set; }
+
+        /// <summary>
         /// Translation
         /// </summary>
         public IDictionary<string, string>? Translation { get; set; }

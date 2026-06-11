@@ -162,6 +162,8 @@ namespace ChurrOS.Api.Commands.Applications
 
         private async Task UpdateExtensionsAsync(Application app, ApplicationExtensionItem[]? applicationExtensionItems, CancellationToken cancellationToken)
         {
+            await ValidateHostPathAccessAsync(app, applicationExtensionItems, cancellationToken);
+
             var repo = _context.Set<ApplicationExtension>();
             if (app.Extensions is not null)
             {
@@ -180,14 +182,40 @@ namespace ChurrOS.Api.Commands.Applications
                 else
                 {
                     var now = DateTimeOffset.Now;
-                    var template = app.Template?.Definition?.Extensions?.First(o => o.Name == ext.Name);
-                    if (template is not null && app.Environment is not null)
+                    // Multi-instance extensions (e.g. additional storage rows like "storage-2")
+                    // are not declared by name in the template definition, so fall back to the
+                    // template name the client supplied on the row.
+                    var definitionExtension = app.Template?.Definition?.Extensions?.FirstOrDefault(o => o.Name == ext.Name);
+                    var templateName = definitionExtension?.Template ?? ext.TemplateName;
+                    if (templateName is not null && app.Environment is not null)
                     {
-                        var templateId = await _mediator.Send(new GetTemplateIdByName(template.Template, app.Environment.Type), cancellationToken);
+                        var templateId = await _mediator.Send(new GetTemplateIdByName(templateName, app.Environment.Type), cancellationToken);
                         repo.Add(new ApplicationExtension(_tenantResolver.AccountId, app.EnvironmentId, app.Id, templateId, ext.Name, ext.Enabled, ext.Parameters, now, _context.IdentityId, now, _context.IdentityId));
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Any extension requesting a <c>hostPath</c> parameter must reference a path the
+        /// current user is allowed to use. This is the primary, user-scoped gate; the
+        /// runner re-validates that the path is environment-managed at deploy time.
+        /// </summary>
+        private async Task ValidateHostPathAccessAsync(Application app, ApplicationExtensionItem[]? applicationExtensionItems, CancellationToken cancellationToken)
+        {
+            if (app.Environment is null)
+            {
+                return;
+            }
+
+            var requestedHostPaths = (applicationExtensionItems ?? [])
+                .Where(e => e.Parameters is not null)
+                .Select(e => e.Parameters.TryGetValue("hostPath", out var values) ? values?.FirstOrDefault() : null)
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(p => p!)
+                .ToArray();
+
+            await _mediator.Send(new EnsureHostPathsAllowed(app.Environment.Name, requestedHostPaths), cancellationToken);
         }
 
         private async Task UpdatePortsAsync(Application app, PortDefinitionItem[]? portDefinitionItem)

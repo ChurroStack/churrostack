@@ -16,6 +16,9 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import TagChipsInput from '@/components/tag-chips-input';
+import StorageExtensionTable from './storage-extension-table';
+
+const STORAGE_EXTENSION_TEMPLATE = 'com.churrostack.extension.storage';
 
 const ExtensionHandler = ({
   app,
@@ -181,6 +184,13 @@ const SettingsPanel = ({
     }
   };
 
+  // Storage is multi-instance: the table owns the full set of storage rows and
+  // replaces every storage extension (name === baseName or "baseName-N") at once.
+  const setStorageExtensions = (baseName: string, items: ApplicationExtensionItem[]) => {
+    const isStorage = (name: string) => name === baseName || name.startsWith(`${baseName}-`);
+    setExtensions((prev) => [...prev.filter((ext) => !isStorage(ext.name)), ...items]);
+  };
+
   return (
     <div className="overflow-hidden rounded-md border flex flex-col min-h-0 w-full h-full">
       <div className="flex flex-row justify-between py-2 px-2 ">
@@ -340,16 +350,28 @@ const SettingsPanel = ({
           </FieldGroup>
         )}
         {app.template?.definition?.extensions &&
-          app.template.definition.extensions.map((extension, idx) => (
-            <ExtensionHandler
-              key={`extension-${idx}`}
-              app={app}
-              extensionTemplate={extension.template}
-              extensionName={extension.name}
-              environmentType={app.template.definition.target}
-              onExtensionChange={setExtension}
-            />
-          ))}
+          app.template.definition.extensions.map((extension, idx) =>
+            extension.template === STORAGE_EXTENSION_TEMPLATE ? (
+              <StorageExtensionTable
+                key={`extension-${idx}`}
+                app={app}
+                baseName={extension.name}
+                extensionTemplate={extension.template}
+                environmentType={app.template.definition.target}
+                environmentName={app.environmentName}
+                onChange={(items) => setStorageExtensions(extension.name, items)}
+              />
+            ) : (
+              <ExtensionHandler
+                key={`extension-${idx}`}
+                app={app}
+                extensionTemplate={extension.template}
+                extensionName={extension.name}
+                environmentType={app.template.definition.target}
+                onExtensionChange={setExtension}
+              />
+            )
+          )}
         <FieldGroup className="flex flex-row gap-2">
           <Field>
             <FieldLabel>{t('Created at')}</FieldLabel>
