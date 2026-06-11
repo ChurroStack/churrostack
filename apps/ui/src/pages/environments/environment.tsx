@@ -18,6 +18,7 @@ import { useMyPermission } from '@/hooks/data/identities';
 import {
   AlertCircle,
   AppWindow,
+  Boxes,
   CheckCircle2Icon,
   CircleAlert,
   Cog,
@@ -51,6 +52,7 @@ import EnvironmentContextMenu from './menus/environment-menu';
 import { useEnvironmentService } from '@/services/environment-services';
 import EnvironmentsApplicationsPanel from './panels/applications-panel';
 import EnvironmentUsagePanel from './panels/usage-panel';
+import EnvironmentResourcesPanel from './panels/resources-panel';
 import { EnvironmentTotalsBar } from './environment-totals-bar';
 import AccessPanel from './panels/members-panel';
 import { toast } from 'sonner';
@@ -76,7 +78,9 @@ const Environment = () => {
     data: rotatedEnvironmentKeysData,
     reset: resetRotateEnvironmentKeys
   } = useRotateEnvironmentKeys(environment?.name ?? data?.name);
-  const [defaultView, setDefaultView] = useState<'applications' | 'setup' | 'usage' | 'security'>('applications');
+  const [defaultView, setDefaultView] = useState<'applications' | 'setup' | 'resources' | 'usage' | 'security'>(
+    'applications'
+  );
   const [usageReloadSignal, setUsageReloadSignal] = useState(0);
   const navigate = useNavigate();
   const { reload } = useEnvironmentService();
@@ -264,6 +268,11 @@ const Environment = () => {
               <TabsTrigger value="setup">
                 <div className="flex flex-row items-center gap-2 px-2">
                   <Cog /> {t('Setup')}
+                </div>
+              </TabsTrigger>
+              <TabsTrigger value="resources">
+                <div className="flex flex-row items-center gap-2 px-2">
+                  <Boxes /> {t('Resources')}
                 </div>
               </TabsTrigger>
               {canManage && (
@@ -477,6 +486,9 @@ const Environment = () => {
                 </Button>
               </CardFooter>
             </Card>
+          </TabsContent>
+          <TabsContent value="resources" className="flex flex-col min-h-0 w-full h-full">
+            <EnvironmentResourcesPanel environment={environment} />
           </TabsContent>
           <TabsContent value="security" className="flex flex-col min-h-0 w-full h-full">
             <AccessPanel environment={environment!} />

@@ -37,8 +37,15 @@ export interface EnvironmentSize {
   limits: ResourceSize;
 }
 
+export interface EnvironmentHostPath {
+  path: string;
+  title?: string;
+  allowed: string[];
+}
+
 export interface EnvironmentDefinition {
   sizes: EnvironmentSize[];
+  hostPaths?: EnvironmentHostPath[];
   capabilities: { [name: string]: string };
   limits: { [name: string]: string };
 }
