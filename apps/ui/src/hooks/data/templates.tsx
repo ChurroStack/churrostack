@@ -36,6 +36,7 @@ export interface TemplateParameterDefinition {
   multi?: boolean;
   condition?: string;
   default_value?: string[];
+  options?: { title: string; value: string }[];
 }
 
 export interface TemplateExtensionItem {

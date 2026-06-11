@@ -24,3 +24,15 @@ sizes:
       cpu: "8"
       memory: 40Gi
       gpu: "nvidia.com/mig-4g.40gb"
+
+# Host paths offered in the application Storage "Map to" dropdown. Each path is
+# mounted via a hostPath PersistentVolume. `allowed` lists the ChurroStack
+# identity names and/or group names permitted to use the path; an empty list (or
+# omitting hostPaths entirely) means no path is offered. Access is enforced by
+# the API at save time and re-checked (path is managed) by the runner at deploy.
+# hostPaths: []
+#  - path: /mnt/data/shared
+#    title: Shared data
+#    allowed:
+#      - alice@example.com
+#      - data-scientists

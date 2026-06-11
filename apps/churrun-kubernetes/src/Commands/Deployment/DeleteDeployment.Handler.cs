@@ -48,6 +48,14 @@ namespace ChurrunKubernetes.Commands.Deployment
                 exists = true;
                 await _kubernetesService.DeletePvcManifest(pvc, @namespace);
             }
+            // PersistentVolumes are cluster-scoped (not deleted with the namespace); remove the
+            // ones we created for this deployment's hostPath storage so they don't leak.
+            var pvs = await _kubernetesService.GetPvsManifests(annotations);
+            foreach (var pv in pvs)
+            {
+                exists = true;
+                await _kubernetesService.DeletePvManifest(pv);
+            }
             var cms = await _kubernetesService.GetConfigMapsManifests(@namespace, annotations);
             foreach (var cm in cms)
             {

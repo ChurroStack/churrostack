@@ -75,7 +75,12 @@ export interface ApplicationSize {
 export interface ApplicationExtensionItem {
   name: string;
   enabled: boolean;
-  template: string;
+  // Optional: stripped before persistence in the single-extension flow; omitted for
+  // multi-instance storage rows (which use templateName instead).
+  template?: string;
+  // Sent for multi-instance extensions (e.g. additional storage rows) so the API can
+  // resolve the template for rows not declared by name in the template definition.
+  templateName?: string;
   parameters?: { [key: string]: string[] };
 }
 

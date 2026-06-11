@@ -14,7 +14,7 @@
       icon: "lucide:app-window"
     },
     singleton: false,
-    parameters: {    
+    parameters: {
       path: {
         title: "Mount path",
         type: "string",
@@ -34,10 +34,32 @@
           { title: "8Gi", value: "8Gi" }
         ],
         required: true
+      },
+      hostPath: {
+        title: "Map to",
+        type: "string",
+        description: "Optional environment-managed local path to mount instead of dynamic storage",
+        required: false
       }
     }
   }
 ~}}
+{{~ has_host_path = parameters.hostPath && parameters.hostPath != "" ~}}
+{{~ use_host_path = has_host_path || storageClass == "hostPath" ~}}
+{{~ use_pvc = use_host_path || (storageClass && storageClass != "emptyDir") ~}}
+{{~ effective_path = "/var/lib/churrun-" + target + "-" + id ~}}
+{{~ if has_host_path ~}}
+{{~ effective_path = parameters.hostPath ~}}
+{{~ end ~}}
+{{~ claim_name = target + "-" + id ~}}
+{{~ if use_host_path ~}}
+{{~ claim_name = target + "-" + id + "-" + md5(effective_path) ~}}
+{{~ end ~}}
+{{~ pv_name = "pv-" + namespace + "-" + claim_name ~}}
+{{~ hostpath_type = "DirectoryOrCreate" ~}}
+{{~ if has_host_path ~}}
+{{~ hostpath_type = "Directory" ~}}
+{{~ end ~}}
 patches:
   - target:
       kind: Deployment
@@ -47,49 +69,65 @@ patches:
         path: "/spec/template/spec/volumes/-"
         value:
           name: {{ id }}-volume
-          {{~ if !storageClass || storageClass == "emptyDir" ~}}
+          {{~ if use_pvc ~}}
+          persistentVolumeClaim:
+            claimName: "{{ claim_name }}"
+          {{~ end ~}}
+          {{~ if !use_pvc ~}}
           emptyDir:
             sizeLimit: "{{ parameters.size }}"
-          {{~ end ~}}          
-          {{~ if storageClass && storageClass != "emptyDir" ~}}
-          persistentVolumeClaim:
-            claimName: "{{ target }}-{{ id }}"
-          {{~ end ~}}          
+          {{~ end ~}}
       - op: add
         path: "$.spec.template.spec.containers[*].volumeMounts"
         type: "jsonpath"
         value:
           mountPath: {{ parameters.path }}
-          name: {{ id }}-volume        
+          name: {{ id }}-volume
       - op: add
         path: "$.spec.template.spec.initContainers[*].volumeMounts"
         type: "jsonpath"
         value:
           mountPath: {{ parameters.path }}
           name: {{ id }}-volume
-{{~ if storageClass && storageClass == "hostPath" ~}}
+{{~ if use_host_path ~}}
 manifests:
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: {{ pv_name }}
+    spec:
+      capacity:
+        storage: "{{ parameters.size }}"
+      accessModes:
+        - ReadWriteOnce
+      persistentVolumeReclaimPolicy: Retain
+      storageClassName: ""
+      hostPath:
+        path: "{{ effective_path }}"
+        type: {{ hostpath_type }}
+      claimRef:
+        namespace: {{ namespace }}
+        name: {{ claim_name }}
   - apiVersion: v1
     kind: PersistentVolumeClaim
     metadata:
-      name: {{ target }}-{{ id }}
+      name: {{ claim_name }}
       namespace: {{ namespace }}
     spec:
       accessModes:
         - ReadWriteOnce
+      storageClassName: ""
+      volumeName: {{ pv_name }}
       resources:
         requests:
           storage: "{{ parameters.size }}"
-      hostPath:
-        path: "/var/lib/churrun-{{ target }}-{{ id }}"
-        type: DirectoryOrCreate
-{{~ end ~}}          
-{{~ if storageClass && storageClass != "hostPath" ~}}
+{{~ end ~}}
+{{~ if !use_host_path && storageClass && storageClass != "emptyDir" ~}}
 manifests:
   - apiVersion: v1
     kind: PersistentVolumeClaim
     metadata:
-      name: {{ target }}-{{ id }}
+      name: {{ claim_name }}
       namespace: {{ namespace }}
     spec:
       accessModes:
@@ -98,4 +136,4 @@ manifests:
         requests:
           storage: "{{ parameters.size }}"
       storageClassName: "{{ storageClass }}"
-{{~ end ~}}          
+{{~ end ~}}

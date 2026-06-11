@@ -44,6 +44,16 @@ namespace ChurrOS.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("{name}/host-paths")]
+        [Produces(MediaTypeNames.Application.Json)]
+        [ProducesResponseType(typeof(AllowedHostPathItem[]), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorMessage), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetEnvironmentHostPaths(string name, CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(new GetAllowedHostPaths(name), cancellationToken);
+            return Ok(result);
+        }
+
         [HttpPost]
         [Consumes(MediaTypeNames.Application.Json)]
         [Produces(MediaTypeNames.Application.Json)]
