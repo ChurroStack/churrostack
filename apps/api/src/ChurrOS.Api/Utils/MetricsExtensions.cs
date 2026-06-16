@@ -115,6 +115,63 @@ namespace ChurrOS.Api.Utils
                 .ToList();
         }
 
+        /// <summary>
+        /// Bins already-Rate()'d per-minute entries into tz-aligned display buckets, aggregating by
+        /// MAX (peak). First sums all series' values for each 1-minute UTC bucket, then takes the
+        /// maximum of those per-minute totals within each display bucket. Empty buckets are 0.
+        /// </summary>
+        internal static List<MetricValueItem> AdjustPeakOverTime(
+            this List<MetricValueEntry> metricValues,
+            DateTimeOffset start,
+            DateTimeOffset end,
+            TimeSpan bucketSize,
+            TimeZoneInfo tz)
+        {
+            var localStart = TimeZoneInfo.ConvertTime(start, tz).DateTime;
+            var localEnd = TimeZoneInfo.ConvertTime(end, tz).DateTime;
+            var nowUtc = DateTimeOffset.UtcNow;
+
+            DateTime alignedLocalStart;
+            if (bucketSize >= TimeSpan.FromDays(1))
+                alignedLocalStart = localStart.Date;
+            else if (bucketSize >= TimeSpan.FromHours(1))
+                alignedLocalStart = new DateTime(localStart.Year, localStart.Month, localStart.Day, localStart.Hour, 0, 0);
+            else
+                alignedLocalStart = new DateTime(localStart.Year, localStart.Month, localStart.Day, localStart.Hour, localStart.Minute, 0);
+
+            var localBucketStarts = new List<DateTime>();
+            for (var t = alignedLocalStart; t < localEnd; t = AddBucket(t, bucketSize))
+                localBucketStarts.Add(t);
+
+            var bucketStartsUtc = localBucketStarts
+                .Select(local => new DateTimeOffset(local, tz.GetUtcOffset(local)).ToUniversalTime())
+                .ToList();
+
+            // Sum all series per 1-minute UTC bucket (Rate() already buckets by minute per MetricId).
+            var perMinuteTotal = new Dictionary<DateTimeOffset, double>();
+            foreach (var entry in metricValues)
+            {
+                perMinuteTotal[entry.Timestamp] = perMinuteTotal.TryGetValue(entry.Timestamp, out var acc)
+                    ? acc + entry.Value
+                    : entry.Value;
+            }
+
+            // Bin per-minute totals into display buckets by MAX.
+            var bucketPeaks = new double[bucketStartsUtc.Count];
+            foreach (var (minute, total) in perMinuteTotal)
+            {
+                var idx = FindBucketIndex(bucketStartsUtc, minute);
+                if (idx < 0) continue;
+                if (total > bucketPeaks[idx])
+                    bucketPeaks[idx] = total;
+            }
+
+            return bucketStartsUtc
+                .Select((utc, i) => new MetricValueItem(utc, bucketPeaks[i]))
+                .Where(o => o.Timestamp < nowUtc)
+                .ToList();
+        }
+
         private static DateTime AddBucket(DateTime t, TimeSpan bucketSize)
         {
             if (bucketSize >= TimeSpan.FromDays(1)) return t.AddDays(1);

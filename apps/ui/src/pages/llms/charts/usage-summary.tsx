@@ -75,6 +75,16 @@ const buildColumns = (t: (k: string) => string): ColumnDef<LlmUsageSummaryItem>[
     cell: ({ row }) => <div>{intFormatter.format(row.getValue<number>('completionTokens'))}</div>
   },
   {
+    accessorKey: 'peakRpm',
+    header: ({ column }) => <SortableHeader column={column} label={t('Peak RPM')} />,
+    cell: ({ row }) => <div>{intFormatter.format(row.getValue<number>('peakRpm') ?? 0)}</div>
+  },
+  {
+    accessorKey: 'peakTpm',
+    header: ({ column }) => <SortableHeader column={column} label={t('Peak TPM')} />,
+    cell: ({ row }) => <div>{intFormatter.format(row.getValue<number>('peakTpm') ?? 0)}</div>
+  },
+  {
     accessorKey: 'inputSpend',
     header: ({ column }) => <SortableHeader column={column} label={t('Input Spend')} />,
     cell: ({ row }) => <div>{usdFormatter.format(row.getValue<number>('inputSpend'))}</div>

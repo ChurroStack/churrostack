@@ -9,6 +9,8 @@ namespace ChurrOS.Api.Models.Dtos.Llm
         public decimal InputSpend { get; set; }
         public decimal OutputSpend { get; set; }
         public decimal TotalSpend { get; set; }
+        public double PeakRpm { get; set; }
+        public double PeakTpm { get; set; }
 
         public LlmUsageItem(string name, long promptTokens, long completionTokens, long completions, decimal inputSpend, decimal outputSpend, decimal totalSpend)
         {

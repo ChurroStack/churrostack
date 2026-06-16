@@ -90,6 +90,58 @@ namespace ChurrOS.Api.Services
         }
 
         /// <summary>
+        /// For each group-by value, compute the peak RPM (max per-minute completions) and peak TPM
+        /// (max per-minute prompt+completion tokens). The per-minute series are already Rate()'d and
+        /// filtered to minutes within the request window. Uses sum-across-series-then-max so a row's
+        /// peak equals the tallest bar of its identity-filtered 1-minute chart.
+        /// </summary>
+        public static Dictionary<string, (double Rpm, double Tpm)> ComputePeaks(
+            string groupBy,
+            List<MetricSeriesMinute> countPerMinute,
+            List<MetricSeriesMinute> promptPerMinute,
+            List<MetricSeriesMinute> completionPerMinute)
+        {
+            // Sum count across series per (group, minute) → peak = max over minutes.
+            var rpmByGroupMinute = new Dictionary<(string Group, DateTimeOffset Minute), double>();
+            foreach (var m in countPerMinute)
+            {
+                var group = m.Labels.TryGetValue(groupBy, out var g) ? g ?? string.Empty : string.Empty;
+                var key = (group, m.Minute);
+                rpmByGroupMinute[key] = rpmByGroupMinute.TryGetValue(key, out var acc) ? acc + m.Value : m.Value;
+            }
+
+            // Sum prompt+completion across series per (group, minute) → peak = max over minutes.
+            var tpmByGroupMinute = new Dictionary<(string Group, DateTimeOffset Minute), double>();
+            foreach (var m in promptPerMinute.Concat(completionPerMinute))
+            {
+                var group = m.Labels.TryGetValue(groupBy, out var g) ? g ?? string.Empty : string.Empty;
+                var key = (group, m.Minute);
+                tpmByGroupMinute[key] = tpmByGroupMinute.TryGetValue(key, out var acc) ? acc + m.Value : m.Value;
+            }
+
+            var allGroups = rpmByGroupMinute.Keys.Select(k => k.Group)
+                .Union(tpmByGroupMinute.Keys.Select(k => k.Group))
+                .Distinct(StringComparer.Ordinal);
+
+            var result = new Dictionary<string, (double Rpm, double Tpm)>(StringComparer.Ordinal);
+            foreach (var group in allGroups)
+            {
+                var peakRpm = rpmByGroupMinute
+                    .Where(kv => string.Equals(kv.Key.Group, group, StringComparison.Ordinal))
+                    .Select(kv => kv.Value)
+                    .DefaultIfEmpty(0)
+                    .Max();
+                var peakTpm = tpmByGroupMinute
+                    .Where(kv => string.Equals(kv.Key.Group, group, StringComparison.Ordinal))
+                    .Select(kv => kv.Value)
+                    .DefaultIfEmpty(0)
+                    .Max();
+                result[group] = (peakRpm, peakTpm);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Build the dual price maps (by-host-model first, by-model fallback) from a flat list of
         /// destinations. First-wins on collisions.
         /// </summary>

@@ -145,6 +145,26 @@ const MonitorPanel = ({ llm }: { llm: LlmItem }) => {
           userId={userId}
           model={model}
         />
+        <TokensUsageChart
+          llmId={llmId}
+          metricName="requests_per_minute"
+          title={t('Requests Per Minute')}
+          fromDate={fromDate}
+          toDate={toDate}
+          identityName={identityName}
+          userId={userId}
+          model={model}
+        />
+        <TokensUsageChart
+          llmId={llmId}
+          metricName="tokens_per_minute"
+          title={t('Tokens Per Minute')}
+          fromDate={fromDate}
+          toDate={toDate}
+          identityName={identityName}
+          userId={userId}
+          model={model}
+        />
         <ModelSpends
           llmId={llmId}
           fromDate={fromDate}

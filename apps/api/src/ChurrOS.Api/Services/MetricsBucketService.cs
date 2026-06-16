@@ -108,5 +108,70 @@ namespace ChurrOS.Api.Services
 
             return new MetricValuesItem(metricName, responseLabels, finalMetrics.ToArray());
         }
+
+        public async Task<MetricValuesItem> BuildPeakPerMinuteSeriesAsync(
+            string metricName,
+            IDictionary<string, string> responseLabels,
+            List<MetricSeriesInfo> metrics,
+            DateTimeOffset? requestFrom,
+            DateTimeOffset? requestTo,
+            string? tz,
+            CancellationToken cancellationToken)
+        {
+            if (metrics.Count == 0)
+                return new MetricValuesItem(metricName, responseLabels, []);
+
+            var from = requestFrom ?? DateTime.UtcNow.Date;
+            var to = requestTo ?? DateTime.UtcNow.Date.AddDays(1);
+
+            if (from >= to)
+                throw new ArgumentException("The 'From' date must be earlier than the 'To' date.");
+
+            var metricsIds = metrics.Select(o => o.MetricId).ToList();
+            var dateFrom = from.AddMinutes(-5);
+            var metricValues = await _context.Set<MetricValue>()
+                .Where(o => metricsIds.Contains(o.MetricId) && dateFrom <= o.Timestamp && o.Timestamp <= to)
+                .Select(o => new MetricValueEntry(o.MetricId, o.Timestamp, o.Value))
+                .ToListAsync(cancellationToken);
+
+            if (metricValues.Count == 0)
+            {
+                _logger.LogDebug("MetricsBucketService.BuildPeakPerMinuteSeriesAsync no values: metric={MetricName}", metricName);
+                return new MetricValuesItem(metricName, responseLabels, []);
+            }
+
+            // Counter rate gives per-minute increases; filter lookback buckets so they can't be a peak.
+            metricValues = metricValues.Rate();
+            metricValues = metricValues.Where(m => m.Timestamp >= from).ToList();
+
+            var timeZone = TimeZoneInfo.Utc;
+            if (!string.IsNullOrEmpty(tz))
+            {
+                try
+                {
+                    timeZone = TimeZoneInfo.FindSystemTimeZoneById(tz);
+                }
+                catch (TimeZoneNotFoundException)
+                {
+                    _logger.LogWarning("MetricsBucketService unknown tz='{Tz}', falling back to UTC (metric={MetricName})", tz, metricName);
+                }
+                catch (InvalidTimeZoneException)
+                {
+                    _logger.LogWarning("MetricsBucketService invalid tz='{Tz}', falling back to UTC (metric={MetricName})", tz, metricName);
+                }
+            }
+
+            var diff = to - from;
+            TimeSpan bucketSize;
+            if (diff.TotalDays > 1)
+                bucketSize = TimeSpan.FromDays(1);
+            else if (diff.TotalHours > 1)
+                bucketSize = TimeSpan.FromHours(1);
+            else
+                bucketSize = TimeSpan.FromMinutes(1);
+
+            var finalMetrics = metricValues.AdjustPeakOverTime(from, to, bucketSize, timeZone);
+            return new MetricValuesItem(metricName, responseLabels, finalMetrics.ToArray());
+        }
     }
 }

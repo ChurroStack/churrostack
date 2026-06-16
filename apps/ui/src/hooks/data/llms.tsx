@@ -63,6 +63,8 @@ export interface LlmUsageSummaryItem {
   inputSpend: number;
   outputSpend: number;
   totalSpend: number;
+  peakRpm: number;
+  peakTpm: number;
 }
 
 export function useGetLlms(): UseGetResult<QueryResult<LlmSummary>> {

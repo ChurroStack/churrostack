@@ -14,6 +14,12 @@ namespace ChurrOS.Api.Commands.Llm
 {
     public class GetAggregatedLlmMetricsHandler : IRequestHandler<GetAggregatedLlmMetrics, ValueTask<MetricValuesItem>>
     {
+        private static readonly Dictionary<string, string[]> RateMetricMap = new(StringComparer.Ordinal)
+        {
+            { "requests_per_minute", new[] { "completion_count" } },
+            { "tokens_per_minute", new[] { "prompt_tokens", "completion_tokens" } },
+        };
+
         private readonly IMediator _mediator;
         private readonly ChurrosDbContext _context;
         private readonly IMetricsBucketService _bucketService;
@@ -47,6 +53,36 @@ namespace ChurrOS.Api.Commands.Llm
             {
                 _logger.LogInformation("llm.aggregated_metrics metric={MetricName} llmCount=0 reason=no_access", request.MetricName);
                 return new MetricValuesItem(request.MetricName, labels, []);
+            }
+
+            if (RateMetricMap.TryGetValue(request.MetricName, out var underlyingMetrics))
+            {
+                // Synthetic rate metric: fetch underlying stored metrics, filter by accessible llm_ids,
+                // combine, and build a peak-per-minute series. No stored metric named after this key exists.
+                var combinedSeries = new List<MetricSeriesInfo>();
+                foreach (var underlying in underlyingMetrics)
+                {
+                    var underlyingLabels = new Dictionary<string, string>(labels) { ["metric"] = underlying };
+                    var series = await _context.Set<Metric>()
+                        .Where(o => EF.Functions.JsonContains(o.Labels, underlyingLabels))
+                        .Select(o => new MetricSeriesInfo(o.MetricId, o.Type, o.Labels))
+                        .ToListAsync(cancellationToken);
+                    combinedSeries.AddRange(
+                        series.Where(o => o.Labels.TryGetValue("llm_id", out var s) && !string.IsNullOrEmpty(s) && accessible.Contains(s)));
+                }
+
+                _logger.LogInformation(
+                    "llm.aggregated_metrics metric={MetricName} llmCount={LlmCount} combinedSeries={SeriesCount}",
+                    request.MetricName, accessible.Count, combinedSeries.Count);
+
+                return await _bucketService.BuildPeakPerMinuteSeriesAsync(
+                    request.MetricName,
+                    labels,
+                    combinedSeries,
+                    request.From,
+                    request.To,
+                    request.Tz,
+                    cancellationToken);
             }
 
             // Fetch all metric series matching the labels (no llm_id filter), then drop any series
