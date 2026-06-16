@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/ChurroStack/churrostack/compare/v1.6.0...v1.7.0) (2026-06-16)
+
+
+### Features
+
+* **llms:** add Peak RPM/TPM charts and usage columns ([#44](https://github.com/ChurroStack/churrostack/issues/44)) ([2370d72](https://github.com/ChurroStack/churrostack/commit/2370d729ce8a9ce709064df3a288d1492a1c2a99))
+
 ## [1.6.0](https://github.com/ChurroStack/churrostack/compare/v1.5.0...v1.6.0) (2026-06-11)
 
 
