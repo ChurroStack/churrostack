@@ -137,6 +137,24 @@ const AggregatedMonitorPanel = () => {
           userId={userId}
           model={model}
         />
+        <TokensUsageChart
+          metricName="requests_per_minute"
+          title={t('Requests Per Minute')}
+          fromDate={fromDate}
+          toDate={toDate}
+          identityName={identityName}
+          userId={userId}
+          model={model}
+        />
+        <TokensUsageChart
+          metricName="tokens_per_minute"
+          title={t('Tokens Per Minute')}
+          fromDate={fromDate}
+          toDate={toDate}
+          identityName={identityName}
+          userId={userId}
+          model={model}
+        />
         <ModelSpends
           fromDate={fromDate}
           toDate={toDate}

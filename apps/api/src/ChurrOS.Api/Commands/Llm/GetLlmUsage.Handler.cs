@@ -85,9 +85,37 @@ namespace ChurrOS.Api.Commands.Llm
                 priceByModel);
             rows = LlmUsageAggregator.Sort(rows, request.OrderBy, request.OrderDirection);
 
+            // Compute per-minute peaks and assign to each row.
+            var countPerMinute = await FetchSeriesPerMinuteSafeAsync("completion_count", baseLabels, request, cancellationToken);
+            var promptPerMinute = await FetchSeriesPerMinuteSafeAsync("prompt_tokens", baseLabels, request, cancellationToken);
+            var completionPerMinute = await FetchSeriesPerMinuteSafeAsync("completion_tokens", baseLabels, request, cancellationToken);
+            var peaks = LlmUsageAggregator.ComputePeaks(groupBy, countPerMinute, promptPerMinute, completionPerMinute);
+            foreach (var row in rows)
+            {
+                if (peaks.TryGetValue(row.Name, out var p))
+                {
+                    row.PeakRpm = p.Rpm;
+                    row.PeakTpm = p.Tpm;
+                }
+            }
+
             _logger.LogInformation("llm.usage llmId={LlmId} groupBy={GroupBy} rows={RowCount}", request.LlmId, groupBy, rows.Count);
 
             return new QueryResult<LlmUsageItem>(rows);
+        }
+
+        private async Task<List<MetricSeriesMinute>> FetchSeriesPerMinuteSafeAsync(string metricName, IDictionary<string, string> baseLabels, GetLlmUsage request, CancellationToken cancellationToken)
+        {
+            var labels = new Dictionary<string, string>(baseLabels) { { "metric", metricName } };
+            try
+            {
+                return await _mediator.Send(new GetMetricSeriesPerMinute(labels, request.From, request.To), cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "llm.usage no per-minute series for metric={Metric} llmId={LlmId}", metricName, request.LlmId);
+                return new List<MetricSeriesMinute>();
+            }
         }
 
         private async Task<List<MetricSeriesTotal>> FetchSeriesSafeAsync(string metricName, IDictionary<string, string> baseLabels, GetLlmUsage request, CancellationToken cancellationToken)

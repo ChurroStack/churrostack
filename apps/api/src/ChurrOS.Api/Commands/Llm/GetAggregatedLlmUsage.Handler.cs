@@ -81,9 +81,45 @@ namespace ChurrOS.Api.Commands.Llm
                 priceByModel);
             rows = LlmUsageAggregator.Sort(rows, request.OrderBy, request.OrderDirection);
 
+            // Compute per-minute peaks and assign to each row.
+            var countPerMinute = await FetchAccessibleSeriesPerMinuteAsync("completion_count", baseLabels, accessibleIds, request, cancellationToken);
+            var promptPerMinute = await FetchAccessibleSeriesPerMinuteAsync("prompt_tokens", baseLabels, accessibleIds, request, cancellationToken);
+            var completionPerMinute = await FetchAccessibleSeriesPerMinuteAsync("completion_tokens", baseLabels, accessibleIds, request, cancellationToken);
+            var peaks = LlmUsageAggregator.ComputePeaks(groupBy, countPerMinute, promptPerMinute, completionPerMinute);
+            foreach (var row in rows)
+            {
+                if (peaks.TryGetValue(row.Name, out var p))
+                {
+                    row.PeakRpm = p.Rpm;
+                    row.PeakTpm = p.Tpm;
+                }
+            }
+
             _logger.LogInformation("llm.aggregated_usage groupBy={GroupBy} rows={RowCount}", groupBy, rows.Count);
 
             return new QueryResult<LlmUsageItem>(rows);
+        }
+
+        private async Task<List<MetricSeriesMinute>> FetchAccessibleSeriesPerMinuteAsync(
+            string metricName,
+            IDictionary<string, string> baseLabels,
+            HashSet<string> accessibleIds,
+            GetAggregatedLlmUsage request,
+            CancellationToken cancellationToken)
+        {
+            var labels = new Dictionary<string, string>(baseLabels) { { "metric", metricName } };
+            try
+            {
+                var series = await _mediator.Send(new GetMetricSeriesPerMinute(labels, request.From, request.To), cancellationToken);
+                return series
+                    .Where(s => s.Labels.TryGetValue("llm_id", out var id) && !string.IsNullOrEmpty(id) && accessibleIds.Contains(id))
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "llm.aggregated_usage no per-minute series for metric={Metric}", metricName);
+                return new List<MetricSeriesMinute>();
+            }
         }
 
         private async Task<List<MetricSeriesTotal>> FetchAccessibleSeriesAsync(

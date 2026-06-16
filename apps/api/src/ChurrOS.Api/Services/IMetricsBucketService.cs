@@ -19,5 +19,14 @@ namespace ChurrOS.Api.Services
             DateTimeOffset? requestTo,
             string? tz,
             CancellationToken cancellationToken);
+
+        Task<MetricValuesItem> BuildPeakPerMinuteSeriesAsync(
+            string metricName,
+            IDictionary<string, string> responseLabels,
+            List<MetricSeriesInfo> metrics,
+            DateTimeOffset? requestFrom,
+            DateTimeOffset? requestTo,
+            string? tz,
+            CancellationToken cancellationToken);
     }
 }
