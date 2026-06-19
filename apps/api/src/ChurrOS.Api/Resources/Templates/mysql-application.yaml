@@ -49,10 +49,7 @@
     ],
     ports: [
       {
-        name: "phpmyadmin", port: 80, protocol: "web", sharing: "members", authentication: "oidc", title: "phpMyAdmin", icon: "lucide:database", "description": "Access the phpMyAdmin database console.",
-        transforms: [
-          { PathRemovePrefix: "{{basePath}}/phpmyadmin" }
-        ]
+        name: "phpmyadmin", port: 80, protocol: "web", sharing: "members", authentication: "oidc", title: "phpMyAdmin", icon: "lucide:database", "description": "Access the phpMyAdmin database console."
       }
     ]
   }
@@ -122,13 +119,14 @@ spec:
         - name: phpmyadmin
           image: phpmyadmin:5.2-apache
           imagePullPolicy: IfNotPresent
-          # Behind the OIDC-authenticated /share proxy the forwarded Cookie header can
-          # exceed Apache's default LimitRequestFieldSize (8190B) -> 400 "Size of a request
-          # header field exceeds server limit". Raise the limits before starting Apache.
+          # phpMyAdmin is served at the real {{basePath}}/phpmyadmin subpath (the share proxy
+          # does NOT strip the prefix), so Apache must Alias that path to the docroot, else 404.
+          # Also: raise request-header limits (large OIDC cookies), and honour X-Forwarded-Proto
+          # so phpMyAdmin detects HTTPS and can set its secure session cookie.
           command: ["/bin/sh", "-c"]
           args:
             - |
-              printf 'LimitRequestFieldSize 65536\nLimitRequestLine 65536\n' > /etc/apache2/conf-enabled/churro-limits.conf
+              printf '%s\n' 'LimitRequestFieldSize 65536' 'LimitRequestLine 65536' 'SetEnvIf X-Forwarded-Proto "https" HTTPS=on' 'Alias {{basePath}}/phpmyadmin /var/www/html' '<Directory /var/www/html>' '  Require all granted' '</Directory>' > /etc/apache2/conf-enabled/churro.conf
               exec /docker-entrypoint.sh apache2-foreground
           env:
           - name: BASE_PATH
@@ -137,8 +135,6 @@ spec:
             value: "127.0.0.1"
           - name: PMA_PORT
             value: "3306"
-          - name: PMA_ABSOLUTE_URI
-            value: "{{basePath}}/phpmyadmin/"
           ports:
           - containerPort: 80
 ---
