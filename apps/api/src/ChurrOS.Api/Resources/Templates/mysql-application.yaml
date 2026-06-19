@@ -122,6 +122,14 @@ spec:
         - name: phpmyadmin
           image: phpmyadmin:5.2-apache
           imagePullPolicy: IfNotPresent
+          # Behind the OIDC-authenticated /share proxy the forwarded Cookie header can
+          # exceed Apache's default LimitRequestFieldSize (8190B) -> 400 "Size of a request
+          # header field exceeds server limit". Raise the limits before starting Apache.
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              printf 'LimitRequestFieldSize 65536\nLimitRequestLine 65536\n' > /etc/apache2/conf-enabled/churro-limits.conf
+              exec /docker-entrypoint.sh apache2-foreground
           env:
           - name: BASE_PATH
             value: {{basePath}}
