@@ -30,6 +30,7 @@
     <EmbeddedResource Include="Resources\Templates\streamlit-torch.yaml" />
     <EmbeddedResource Include="Resources\Templates\streamlit-application.yaml" />
     <EmbeddedResource Include="Resources\Templates\qdrant-application.yaml" />
+    <EmbeddedResource Include="Resources\Templates\mysql-application.yaml" />
     <EmbeddedResource Include="Resources\Templates\vllm-application.yaml" />
     <EmbeddedResource Include="Resources\Templates\streamlit-x11-application.yaml" />
     <EmbeddedResource Include="Resources\helm-values.yaml" />
