@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/ChurroStack/churrostack/compare/v1.7.0...v1.8.0) (2026-06-19)
+
+
+### Features
+
+* **templates:** add MySQL + phpMyAdmin application template ([#46](https://github.com/ChurroStack/churrostack/issues/46)) ([324350c](https://github.com/ChurroStack/churrostack/commit/324350cc4dfe37d326d7a42c4d8c4b6b716cc9c7))
+
 ## [1.7.0](https://github.com/ChurroStack/churrostack/compare/v1.6.0...v1.7.0) (2026-06-16)
 
 
