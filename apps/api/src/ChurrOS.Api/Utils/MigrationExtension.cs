@@ -70,6 +70,7 @@ namespace ChurrOS.Api.Utils
             await AddTemplateAsync(accountId, systemId, context, templateService, idGeneratorService, "Resources.Templates.fastapi-x11-application.yaml", categories);
             await AddTemplateAsync(accountId, systemId, context, templateService, idGeneratorService, "Resources.Templates.fastmcp-application.yaml", categories);
             await AddTemplateAsync(accountId, systemId, context, templateService, idGeneratorService, "Resources.Templates.qdrant-application.yaml", categories);
+            await AddTemplateAsync(accountId, systemId, context, templateService, idGeneratorService, "Resources.Templates.mysql-application.yaml", categories);
             await AddTemplateAsync(accountId, systemId, context, templateService, idGeneratorService, "Resources.Templates.docker-application.yaml", categories);
 
             // Commit changes to database

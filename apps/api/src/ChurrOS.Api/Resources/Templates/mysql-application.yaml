@@ -1,0 +1,154 @@
+{{~
+  template = {
+    name: "com.churrostack.mysql",
+    icon: "/template-icons/mysql.svg",
+    version: "0.0.1",
+    title: "MySQL",
+    target: "com.churrostack.environment.kubernetes",
+    type: "application",
+    description: "A MySQL 8.0 database with a phpMyAdmin web console. phpMyAdmin is published on the shared port; MySQL is reachable in-cluster on port 3306 by other applications.",
+    category: {
+      name: "databases",
+      title: "Databases",
+      icon: "lucide:database"
+    },
+    parameters: {
+      root_password: {
+        title: "Root password",
+        type: "string",
+        ui_hint: "password",
+        icon: "lucide:lock",
+        description: "Password for the MySQL `root` account.",
+        required: true
+      },
+      username: {
+        title: "Username",
+        type: "string",
+        description: "Application database user to create. Cannot be `root` (the image rejects it).",
+        default_value: ["mysql"],
+        required: true
+      },
+      password: {
+        title: "Password",
+        type: "string",
+        ui_hint: "password",
+        icon: "lucide:lock",
+        description: "Password for the application database user.",
+        required: true
+      },
+      database: {
+        title: "Default database",
+        type: "string",
+        description: "Name of the database created on first start.",
+        default_value: ["app"],
+        required: true
+      }
+    },
+    extensions: [
+      { name: "storage", template: "com.churrostack.extension.storage", required: true, parameters: { path: "/app/home" } }
+    ],
+    ports: [
+      {
+        name: "phpmyadmin", port: 80, protocol: "web", sharing: "members", authentication: "oidc", title: "phpMyAdmin", icon: "lucide:database", "description": "Access the phpMyAdmin database console.",
+        transforms: [
+          { PathRemovePrefix: "{{basePath}}/phpmyadmin" }
+        ]
+      }
+    ]
+  }
+~}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ id }}
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ id }}
+  template:
+    metadata:
+      labels:
+        app: {{ id }}
+    spec:
+      volumes: []
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          imagePullPolicy: IfNotPresent
+          args: ["--datadir=/app/home/data"]
+          volumeMounts: []
+          env:
+          - name: BASE_PATH
+            value: {{basePath}}
+          - name: MYSQL_ROOT_PASSWORD
+            value: "{{ parameters.root_password }}"
+          - name: MYSQL_USER
+            value: "{{ parameters.username }}"
+          - name: MYSQL_PASSWORD
+            value: "{{ parameters.password }}"
+          - name: MYSQL_DATABASE
+            value: "{{ parameters.database }}"
+          {{~ for $e in variables ~}}
+          - name: {{$e.name}}
+            value: "{{$e.value}}"
+          {{~ end ~}}
+          ports:
+          - containerPort: 3306
+          {{~ if template.requests || template.limits ~}}
+          resources:
+            {{~ if template.requests ~}}
+            requests:
+              {{~ if template.requests.cpu ~}}
+              cpu: "{{ template.requests.cpu }}"
+              {{~ end ~}}
+              {{~ if template.requests.memory ~}}
+              memory: "{{ template.requests.memory }}"
+              {{~ end ~}}
+            {{~ end ~}}
+            {{~ if template.limits ~}}
+            limits:
+              {{~ if template.limits.cpu ~}}
+              cpu: "{{ template.limits.cpu }}"
+              {{~ end ~}}
+              {{~ if template.limits.memory ~}}
+              memory: "{{ template.limits.memory }}"
+              {{~ end ~}}
+            {{~ end ~}}
+          {{~ end ~}}
+        - name: phpmyadmin
+          image: phpmyadmin:5.2-apache
+          imagePullPolicy: IfNotPresent
+          env:
+          - name: BASE_PATH
+            value: {{basePath}}
+          - name: PMA_HOST
+            value: "127.0.0.1"
+          - name: PMA_PORT
+            value: "3306"
+          - name: PMA_ABSOLUTE_URI
+            value: "{{basePath}}/phpmyadmin/"
+          ports:
+          - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ id }}
+  namespace: {{ namespace }}
+spec:
+  ports:
+    - name: phpmyadmin-http
+      protocol: TCP
+      port: 80
+      targetPort: 80
+    - name: mysql
+      protocol: TCP
+      port: 3306
+      targetPort: 3306
+  selector:
+    app: {{ id }}
+  type: ClusterIP

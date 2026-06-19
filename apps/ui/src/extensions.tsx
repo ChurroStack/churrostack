@@ -291,6 +291,10 @@ export function renderIcon(icon: string | undefined, className?: string) {
   if (icon.startsWith('http:') || icon.startsWith('https:')) {
     return <img src={icon} className={className} />;
   }
+  if (icon.startsWith('/')) {
+    // Root-relative path to a static asset served from the PWA public folder.
+    return <img src={icon} className={className} />;
+  }
   return <div className={className}></div>;
 }
 
