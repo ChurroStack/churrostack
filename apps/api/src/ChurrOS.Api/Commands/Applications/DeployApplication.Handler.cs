@@ -80,7 +80,13 @@ namespace ChurrOS.Api.Commands.Applications
             var appTemplate = app.Template!;
             var appParameters = ParseParameters(true, app.Name, appTemplate.Definition.Parameters, app.Parameters, null);
             var extensions = new List<DeploymentExtensionRequestItem>();
-            var ports = app.Ports?.ToList() ?? new List<PortDefinition>();
+            // Re-render ports from the template/extension definitions on every deploy so template
+            // changes (e.g. a changed port number or transform) propagate to already-deployed
+            // applications. Rebuild the list from the current definitions and carry over only the
+            // user-editable Authentication/Sharing from the previously stored ports. (Previously an
+            // already-present port name was skipped, so it kept its stale value forever.)
+            var existingPorts = app.Ports?.ToList() ?? new List<PortDefinition>();
+            var ports = new List<PortDefinition>();
             var basePath = $"/share/{app.Name}";
 
             if (appTemplate.Definition.Ports is not null)
@@ -98,7 +104,7 @@ namespace ChurrOS.Api.Commands.Applications
                     {
                         templatePort.Uri = await _templateService.TransformAsync(templatePort.Uri, jsonBaseArgs.Deserialize<JsonElement>());
                     }
-                    var existingPort = app.Ports?.FirstOrDefault(p => p.Name == templatePort.Name);
+                    var existingPort = existingPorts.FirstOrDefault(p => p.Name == templatePort.Name);
                     if (existingPort is not null)
                     {
                         templatePort.Authentication = existingPort.Authentication;
@@ -133,7 +139,7 @@ namespace ChurrOS.Api.Commands.Applications
                             {
                                 templatePort.Uri = await _templateService.TransformAsync(templatePort.Uri, jsonBaseArgs.Deserialize<JsonElement>());
                             }
-                            var existingPort = app.Ports?.FirstOrDefault(p => p.Name == templatePort.Name);
+                            var existingPort = existingPorts.FirstOrDefault(p => p.Name == templatePort.Name);
                             if (existingPort is not null)
                             {
                                 templatePort.Authentication = existingPort.Authentication;
