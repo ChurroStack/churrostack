@@ -622,6 +622,26 @@ namespace ChurrOS.Api
                 return next();
             });
 
+            // /share traffic is reverse-proxied through one or more YARP hops. With a streamed
+            // request body, YARP can begin forwarding before the inbound body is fully received and
+            // send 0 bytes while promising the Content-Length ("Sent 0 request content bytes, but
+            // Content-Length promised N"); the downstream hop then waits for a body that never
+            // arrives, the request is canceled, and it surfaces as an opaque 400. Buffering the body
+            // so it is fully received and re-readable before forwarding fixes POST/PUT/PATCH through
+            // the proxy. Only small bodies are buffered so large uploads keep streaming.
+            const long shareRequestBufferLimit = 30 * 1024 * 1024;
+            app.Use(async (context, next) =>
+            {
+                if (context.Request.Path.StartsWithSegments("/share")
+                    && context.Request.ContentLength is > 0 and <= shareRequestBufferLimit)
+                {
+                    context.Request.EnableBuffering();
+                    await context.Request.Body.CopyToAsync(System.IO.Stream.Null, context.RequestAborted);
+                    context.Request.Body.Position = 0;
+                }
+                await next();
+            });
+
             app.UseRequestLocalization(new RequestLocalizationOptions
             {
                 DefaultRequestCulture = new RequestCulture("en"),
