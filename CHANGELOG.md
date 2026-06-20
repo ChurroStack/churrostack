@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/ChurroStack/churrostack/compare/v1.8.0...v1.8.1) (2026-06-20)
+
+
+### Bug Fixes
+
+* MySQL/phpMyAdmin template + /share proxy POST forwarding & port re-render ([#48](https://github.com/ChurroStack/churrostack/issues/48)) ([7bb39cd](https://github.com/ChurroStack/churrostack/commit/7bb39cd9c4d89dbedb8135ec95c38ecd8f62565d))
+
 ## [1.8.0](https://github.com/ChurroStack/churrostack/compare/v1.7.0...v1.8.0) (2026-06-19)
 
 
