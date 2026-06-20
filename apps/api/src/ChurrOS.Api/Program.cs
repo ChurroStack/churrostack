@@ -629,7 +629,7 @@ namespace ChurrOS.Api
             // arrives, the request is canceled, and it surfaces as an opaque 400. Buffering the body
             // so it is fully received and re-readable before forwarding fixes POST/PUT/PATCH through
             // the proxy. Only small bodies are buffered so large uploads keep streaming.
-            const long shareRequestBufferLimit = 30 * 1024 * 1024;
+            const long shareRequestBufferLimit = 100 * 1024 * 1024;
             app.Use(async (context, next) =>
             {
                 if (context.Request.Path.StartsWithSegments("/share")
