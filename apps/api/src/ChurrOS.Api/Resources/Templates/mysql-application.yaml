@@ -49,7 +49,7 @@
     ],
     ports: [
       {
-        name: "phpmyadmin", port: 80, protocol: "web", sharing: "members", authentication: "oidc", title: "phpMyAdmin", icon: "lucide:database", "description": "Access the phpMyAdmin database console."
+        name: "phpmyadmin", port: 8080, protocol: "web", sharing: "members", authentication: "oidc", title: "phpMyAdmin", icon: "lucide:database", "description": "Access the phpMyAdmin database console."
       }
     ]
   }
@@ -121,11 +121,14 @@ spec:
           imagePullPolicy: IfNotPresent
           # phpMyAdmin is served at the real {{basePath}}/phpmyadmin subpath (the share proxy
           # does NOT strip the prefix), so Apache must Alias that path to the docroot, else 404.
-          # Also: raise request-header limits (large OIDC cookies), and honour X-Forwarded-Proto
-          # so phpMyAdmin detects HTTPS and can set its secure session cookie.
+          # Apache listens on 8080 (not the image default 80). Also: raise request-header limits
+          # (large OIDC cookies), and honour X-Forwarded-Proto so phpMyAdmin detects HTTPS and
+          # can set its secure session cookie.
           command: ["/bin/sh", "-c"]
           args:
             - |
+              sed -i 's/^Listen 80$/Listen 8080/' /etc/apache2/ports.conf
+              sed -ri 's/<VirtualHost \*:80>/<VirtualHost *:8080>/' /etc/apache2/sites-enabled/*.conf
               printf '%s\n' 'LimitRequestFieldSize 65536' 'LimitRequestLine 65536' 'SetEnvIf X-Forwarded-Proto "https" HTTPS=on' 'Alias {{basePath}}/phpmyadmin /var/www/html' '<Directory /var/www/html>' '  Require all granted' '</Directory>' > /etc/apache2/conf-enabled/churro.conf
               exec /docker-entrypoint.sh apache2-foreground
           env:
@@ -136,7 +139,7 @@ spec:
           - name: PMA_PORT
             value: "3306"
           ports:
-          - containerPort: 80
+          - containerPort: 8080
 ---
 apiVersion: v1
 kind: Service
@@ -147,8 +150,8 @@ spec:
   ports:
     - name: phpmyadmin-http
       protocol: TCP
-      port: 80
-      targetPort: 80
+      port: 8080
+      targetPort: 8080
     - name: mysql
       protocol: TCP
       port: 3306
