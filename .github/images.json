@@ -102,6 +102,13 @@
       "dockerfile": "apps/images/images/git-sync/Dockerfile",
       "watch": ["apps/images/images/git-sync"],
       "versionArg": false
+    },
+    {
+      "name": "document-converter",
+      "context": "apps/images/images/document-converter",
+      "dockerfile": "apps/images/images/document-converter/Dockerfile",
+      "watch": ["apps/images/images/document-converter"],
+      "versionArg": false
     }
   ]
 }
