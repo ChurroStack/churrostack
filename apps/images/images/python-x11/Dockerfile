@@ -13,6 +13,7 @@ RUN apt-get update \
         gcc \
         make \
         curl \
+        ffmpeg \
         libxcb1 \
         libx11-6 \
         libxext6 \
