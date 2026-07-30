@@ -24,6 +24,10 @@ jobs:
     steps:
       # The repo merges PRs via squash, so the PR title becomes the commit
       # message release-please parses. Enforce the Conventional Commit format.
+      # This holds only because the repo's squash_merge_commit_title is set to
+      # PR_TITLE. Under GitHub's COMMIT_OR_PR_TITLE default, a single-commit PR
+      # lands with that commit's subject instead and release-please silently
+      # drops it — see docs/postmortems/2026-07-30-fix-release-please-missed-squash-commit.
       - uses: amannn/action-semantic-pull-request@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
