@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.9.0](https://github.com/ChurroStack/churrostack/compare/v1.8.1...v1.9.0) (2026-07-30)
+
+
+### Features
+
+* **images:** add document-converter image (LibreOffice to PDF API) ([#50](https://github.com/ChurroStack/churrostack/issues/50)) ([9bb58ec](https://github.com/ChurroStack/churrostack/commit/9bb58ec220f8cfce2b41aada1eb30c43905664df))
+
+
+### Bug Fixes
+
+* group membership and authorization cache invalidation ([#53](https://github.com/ChurroStack/churrostack/issues/53)) ([87c3717](https://github.com/ChurroStack/churrostack/commit/87c37172f93ae17aa8b3173e312a185cc4b8ce44))
+
 ## [1.8.1](https://github.com/ChurroStack/churrostack/compare/v1.8.0...v1.8.1) (2026-06-20)
 
 
