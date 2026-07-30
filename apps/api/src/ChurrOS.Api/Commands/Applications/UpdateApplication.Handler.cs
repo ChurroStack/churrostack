@@ -28,8 +28,9 @@ namespace ChurrOS.Api.Commands.Applications
         private readonly ClientNotificationService _clientNotificationService;
         private readonly ICacheService _cacheService;
         private readonly ILockService _lockService;
+        private readonly ILogger<UpdateApplicationHandler> _logger;
 
-        public UpdateApplicationHandler(IMediator mediator, ChurrosDbContext context, IMapper mapper, ITenantResolver tenantResolver, ClientNotificationService clientNotificationService, ICacheService cacheService, ILockService lockService)
+        public UpdateApplicationHandler(IMediator mediator, ChurrosDbContext context, IMapper mapper, ITenantResolver tenantResolver, ClientNotificationService clientNotificationService, ICacheService cacheService, ILockService lockService, ILogger<UpdateApplicationHandler> logger)
         {
             _mediator = mediator;
             _context = context;
@@ -38,6 +39,7 @@ namespace ChurrOS.Api.Commands.Applications
             _clientNotificationService = clientNotificationService;
             _cacheService = cacheService;
             _lockService = lockService;
+            _logger = logger;
         }
 
         public async ValueTask<ApplicationItem> Handle(UpdateApplication request, CancellationToken cancellationToken)
@@ -148,9 +150,14 @@ namespace ChurrOS.Api.Commands.Applications
                     await envLock.DisposeAsync();
             }
 
-            foreach (var identityId in new long[0].Union(membersToPurge ?? []).Union(updatedMembers ?? []).Distinct())
+            if (updatedMembers is not null)
             {
-                await _cacheService.InvalidatePrefixAsync($"tenant:{_tenantResolver.AccountId}:identity:{identityId}");
+                await _cacheService.InvalidateIdentityAuthorizationCachesAsync(
+                    _context,
+                    _tenantResolver.AccountId,
+                    membersToPurge.Union(updatedMembers),
+                    _logger,
+                    cancellationToken);
             }
 
             await _cacheService.InvalidatePrefixAsync($"app:{app.Name}");

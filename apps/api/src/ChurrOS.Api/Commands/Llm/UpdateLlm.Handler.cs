@@ -21,19 +21,22 @@ namespace ChurrOS.Api.Commands.Llm
         private readonly ChurrosDbContext _context;
         private readonly ITenantResolver _tenantResolver;
         private readonly ICacheService _cacheService;
+        private readonly ILogger<UpdateLlmHandler> _logger;
 
         public UpdateLlmHandler(
             IMediator mediator,
             IMapper mapper,
             ChurrosDbContext context,
             ITenantResolver tenantResolver,
-            ICacheService cacheService)
+            ICacheService cacheService,
+            ILogger<UpdateLlmHandler> logger)
         {
             _mediator = mediator;
             _mapper = mapper;
             _context = context;
             _tenantResolver = tenantResolver;
             _cacheService = cacheService;
+            _logger = logger;
         }
 
         public async ValueTask<LlmItem> Handle(UpdateLlm request, CancellationToken cancellationToken)
@@ -94,9 +97,14 @@ namespace ChurrOS.Api.Commands.Llm
 
             await _context.SaveChangesAsync();
 
-            foreach (var identityId in Array.Empty<long>().Union(membersToPurge ?? []).Union(updatedMembers ?? []).Distinct())
+            if (updatedMembers is not null)
             {
-                await _cacheService.InvalidatePrefixAsync($"tenant:{_tenantResolver.AccountId}:identity:{identityId}");
+                await _cacheService.InvalidateIdentityAuthorizationCachesAsync(
+                    _context,
+                    _tenantResolver.AccountId,
+                    membersToPurge.Union(updatedMembers),
+                    _logger,
+                    cancellationToken);
             }
 
             return _mapper.Map<Domain.Llm, LlmItem>(llm);
