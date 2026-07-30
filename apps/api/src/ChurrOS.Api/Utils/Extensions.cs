@@ -142,6 +142,25 @@ namespace ChurrOS.Api.Utils
             return updatedMemberIds.Distinct().ToArray();
         }
 
+        public static async Task InvalidateIdentityAuthorizationCachesAsync(this ICacheService cacheService, ChurrosDbContext context, long accountId, IEnumerable<long> identityIds, ILogger logger, CancellationToken cancellationToken)
+        {
+            var directIdentityIds = identityIds.Distinct().ToArray();
+            var groupMemberIds = await context.Set<Domain.IdentityMemberOf>()
+                .Where(o => directIdentityIds.Contains(o.GroupId))
+                .Select(o => o.IdentityId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            var idsToPurge = directIdentityIds.Union(groupMemberIds).ToArray();
+
+            foreach (var identityId in idsToPurge)
+            {
+                await cacheService.InvalidatePrefixAsync($"tenant:{accountId}:identity:{identityId}");
+            }
+
+            logger.LogInformation("[AuthorizationCache] accountId={AccountId} directIdentityCount={DirectIdentityCount} groupMemberCount={GroupMemberCount} purgedIdentityCount={PurgedIdentityCount}",
+                accountId, directIdentityIds.Length, groupMemberIds.Count, idsToPurge.Length);
+        }
+
 
         public static string BuildCanonicalUrl(this HttpRequestMessage request)
         {

@@ -567,6 +567,7 @@ namespace ChurrOS.Api
             });
 
             builder.Services.AddScoped<ITenantResolver, WebTenantResolver>();
+            builder.Services.AddScoped<IAccountMembershipResolver, AccountMembershipResolver>();
             builder.Services.AddScoped<QuotaService, QuotaService>();
             builder.Services.AddSingleton<IIdGeneratorService, IdGenerationService>();
             builder.Services.AddSingleton<ICacheService, RedisCacheService>();

@@ -1,6 +1,7 @@
 using ChurrOS.Api.Data;
 using ChurrOS.Api.Models.Dtos.Identity;
 using ChurrOS.Api.Services;
+using ChurrOS.Api.Utils;
 using ChurrOS.Api.Utils.Exceptions;
 using DispatchR;
 using DispatchR.Abstractions.Send;
@@ -14,14 +15,16 @@ namespace ChurrOS.Api.Commands.Identity
         private readonly IIdGeneratorService _idGeneratorService;
         private readonly IMediator _mediator;
         private readonly ICacheService _cacheService;
+        private readonly ILogger<UpsertIdentityHandler> _logger;
 
-        public UpsertIdentityHandler(ChurrosDbContext dbContext, ITenantResolver tenantResolver, IIdGeneratorService idGeneratorService, IMediator mediator, ICacheService cacheService)
+        public UpsertIdentityHandler(ChurrosDbContext dbContext, ITenantResolver tenantResolver, IIdGeneratorService idGeneratorService, IMediator mediator, ICacheService cacheService, ILogger<UpsertIdentityHandler> logger)
         {
             _dbContext = dbContext;
             _tenantResolver = tenantResolver;
             _idGeneratorService = idGeneratorService;
             _mediator = mediator;
             _cacheService = cacheService;
+            _logger = logger;
         }
 
         public async ValueTask<IdentityWithAssignedItem> Handle(UpsertIdentity request, CancellationToken cancellationToken)
@@ -45,7 +48,6 @@ namespace ChurrOS.Api.Commands.Identity
             var identityMembersOfRepo = _dbContext.Set<Domain.IdentityMemberOf>();
             var identityRepo = _dbContext.Set<Domain.Identity>();
             var identity = await identityRepo
-                .Include(o => o.MemberOf)
                 .Where(o => o.Name.ToLower().Equals(request.Body.Name.ToLower()))
                 .FirstOrDefaultAsync(cancellationToken: cancellationToken);
 
@@ -107,54 +109,64 @@ namespace ChurrOS.Api.Commands.Identity
                 identity.SetDisplayName(request.Body.DisplayName);
                 identity.SetModified(_dbContext.IdentityId, DateTimeOffset.Now);
 
-                if (request.Body.Type == IdentityType.Group)
-                {
-                    var itemsToDelete = identityMembersOfRepo.Where(o => o.GroupId == identity.Id);
-                    identityMembersOfRepo.RemoveRange(itemsToDelete);
-
-                    idsToPurge.AddRange(itemsToDelete.Select(x => x.IdentityId));
-                    idsToPurge.AddRange(itemsToDelete.Select(x => x.GroupId));
-
-                    foreach (var assignedId in assignedIds)
-                    {
-                        var memberOf = new Domain.IdentityMemberOf(_tenantResolver.AccountId, assignedId, identity.Id);
-                        identityMembersOfRepo.Add(memberOf);
-                    }
-                }
-                else
-                {
-                    var itemsToDelete = identityMembersOfRepo.Where(o => o.IdentityId == identity.Id);
-                    identityMembersOfRepo.RemoveRange(itemsToDelete);
-
-                    idsToPurge.AddRange(itemsToDelete.Select(x => x.IdentityId));
-                    idsToPurge.AddRange(itemsToDelete.Select(x => x.GroupId));
-
-                    foreach (var assignedId in assignedIds)
-                    {
-                        var memberOf = new Domain.IdentityMemberOf(_tenantResolver.AccountId, identity.Id, assignedId);
-                        identityMembersOfRepo.Add(memberOf);
-                    }
-                }
+                var (removedIds, addedIds) = await UpdateMembershipAsync(identity.Id, assignedIds, request.Body.Type == IdentityType.Group, cancellationToken);
+                idsToPurge.AddRange(removedIds);
+                idsToPurge.AddRange(addedIds);
             }
 
             idsToPurge.Add(identity.Id);
-            idsToPurge.AddRange(identity.MemberOf.Select(x => x.IdentityId));
 
-            var clientSecret = string.Empty;
+            await _dbContext.SaveChangesAsync(cancellationToken);
 
-            await _dbContext.SaveChangesAsync();
-
-            var toPurge = await identityRepo.AsNoTracking().Where(o => idsToPurge.Distinct().Contains(o.Id)).ToListAsync();
+            var idsToPurgeDistinct = idsToPurge.Distinct().ToArray();
+            var toPurge = await identityRepo.AsNoTracking().Where(o => idsToPurgeDistinct.Contains(o.Id)).ToListAsync(cancellationToken);
             foreach (var identityToPurge in toPurge)
             {
                 await _cacheService.InvalidatePrefixAsync($"identity:{identityToPurge.Name.ToLower()}:tenant:default");
-                await _cacheService.InvalidatePrefixAsync($"tenant:{_tenantResolver.AccountId}:identity:{identityToPurge.Id}");
                 await _cacheService.InvalidatePrefixAsync($"tenant:{_tenantResolver.AccountId}:identity:{identityToPurge.Name.ToLower()}");
             }
+            await _cacheService.InvalidateIdentityAuthorizationCachesAsync(_dbContext, _tenantResolver.AccountId, idsToPurgeDistinct, _logger, cancellationToken);
 
             var newIdentity = await _mediator.Send(new GetIdentity(identity.Name), cancellationToken);
 
             return newIdentity;
+        }
+
+        internal async Task<(long[] RemovedIds, long[] AddedIds)> UpdateMembershipAsync(long identityId, IReadOnlyCollection<long> desiredIds, bool identityIsGroup, CancellationToken cancellationToken)
+        {
+            var currentMemberships = identityIsGroup
+                ? await _dbContext.Set<Domain.IdentityMemberOf>()
+                    .Where(o => o.GroupId == identityId)
+                    .ToListAsync(cancellationToken)
+                : await _dbContext.Set<Domain.IdentityMemberOf>()
+                    .Where(o => o.IdentityId == identityId)
+                    .ToListAsync(cancellationToken);
+
+            var currentIds = currentMemberships
+                .Select(o => identityIsGroup ? o.IdentityId : o.GroupId)
+                .ToArray();
+            var currentIdsSet = currentIds.ToHashSet();
+            var desiredIdsSet = desiredIds.ToHashSet();
+            var removedIds = currentIdsSet.Except(desiredIdsSet).ToArray();
+            var addedIds = desiredIdsSet.Except(currentIdsSet).ToArray();
+
+            if (removedIds.Length > 0)
+            {
+                _dbContext.Set<Domain.IdentityMemberOf>().RemoveRange(
+                    currentMemberships.Where(o => removedIds.Contains(identityIsGroup ? o.IdentityId : o.GroupId)));
+            }
+
+            foreach (var addedId in addedIds)
+            {
+                _dbContext.Set<Domain.IdentityMemberOf>().Add(identityIsGroup
+                    ? new Domain.IdentityMemberOf(_tenantResolver.AccountId, addedId, identityId)
+                    : new Domain.IdentityMemberOf(_tenantResolver.AccountId, identityId, addedId));
+            }
+
+            _logger.LogInformation("[IdentityMembership] accountId={AccountId} identityId={IdentityId} type={IdentityType} added={AddedCount} removed={RemovedCount}",
+                _tenantResolver.AccountId, identityId, identityIsGroup ? "group" : "identity", addedIds.Length, removedIds.Length);
+
+            return (removedIds, addedIds);
         }
     }
 }

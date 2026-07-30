@@ -22,6 +22,7 @@ namespace ChurrOS.Api.Commands.Environment
         private readonly ClientNotificationService _clientNotificationService;
         private readonly ITenantResolver _tenantResolver;
         private readonly ICacheService _cacheService;
+        private readonly ILogger<UpdateEnvironmentHandler> _logger;
 
         public UpdateEnvironmentHandler(
             ChurrosDbContext dbContext,
@@ -30,7 +31,8 @@ namespace ChurrOS.Api.Commands.Environment
             ProxyConfigurationProvider proxyConfigurationProvider,
             ClientNotificationService clientNotificationService,
             ITenantResolver tenantResolver,
-            ICacheService cacheService)
+            ICacheService cacheService,
+            ILogger<UpdateEnvironmentHandler> logger)
         {
             _dbContext = dbContext;
             _mediator = mediator;
@@ -39,6 +41,7 @@ namespace ChurrOS.Api.Commands.Environment
             _clientNotificationService = clientNotificationService;
             _tenantResolver = tenantResolver;
             _cacheService = cacheService;
+            _logger = logger;
         }
 
         public async ValueTask<EnvironmentItem> Handle(UpdateEnvironment request, CancellationToken cancellationToken)
@@ -106,9 +109,14 @@ namespace ChurrOS.Api.Commands.Environment
 
             await _clientNotificationService.NotifyChangeAsync(environment.AccountId, environment.Name, ClientNotificationService.NotificationTargetType.Environment, cancellationToken);
 
-            foreach (var identityId in Array.Empty<long>().Union(membersToPurge ?? []).Union(updatedMembers ?? []).Distinct())
+            if (updatedMembers is not null)
             {
-                await _cacheService.InvalidatePrefixAsync($"tenant:{_tenantResolver.AccountId}:identity:{identityId}");
+                await _cacheService.InvalidateIdentityAuthorizationCachesAsync(
+                    _dbContext,
+                    _tenantResolver.AccountId,
+                    (membersToPurge ?? []).Union(updatedMembers),
+                    _logger,
+                    cancellationToken);
             }
 
             return await _mediator.Send(new GetEnvironmentByName(request.Name), cancellationToken);

@@ -9,4 +9,5 @@
     <File Path="../README.md" />
   </Folder>
   <Project Path="ChurrOS.Api/ChurrOS.Api.csproj" />
+  <Project Path="ChurrOS.Api.Tests/ChurrOS.Api.Tests.csproj" />
 </Solution>

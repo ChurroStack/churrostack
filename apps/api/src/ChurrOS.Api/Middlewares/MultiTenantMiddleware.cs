@@ -1,5 +1,4 @@
-﻿using ChurrOS.Api.Data;
-using LazyCache;
+﻿using ChurrOS.Api.Services;
 
 namespace ChurrOS.Api.Middlewares
 {
@@ -12,36 +11,17 @@ namespace ChurrOS.Api.Middlewares
             _next = next;
         }
 
-        public async Task Invoke(HttpContext httpContext, IAppCache appCache, ChurrosDbContext dbContext)
+        public async Task Invoke(HttpContext httpContext, IAccountMembershipResolver accountMembershipResolver)
         {
             // If user is authenticated, resolve AccountId
             if (httpContext.User?.Identity?.IsAuthenticated ?? false)
             {
                 var identityName = httpContext.User.Identity.Name;
-                long? userAccountId = await appCache.GetOrAddAsync<long?>($"identity:{identityName}", async (ctx) =>
-                {
-                    try
-                    {
-                        if (httpContext.Request.Headers.TryGetValue("X-TENANT-ID", out var accountIdHeader) && long.TryParse(accountIdHeader, out var accountId))
-                        {
-                            var count = await dbContext.ExecuteScalarAsync<long?>($"SELECT COUNT(1) FROM cs.identity WHERE account_id = {accountId} AND name = {identityName}");
-                            return accountId;
-                        }
-                        else
-                        {
-                            var accountIds = await dbContext.ExecuteQueryAsync<long>($"SELECT account_id FROM cs.identity WHERE name = {identityName}");
-                            if (accountIds?.Count == 1)
-                            {
-                                return accountIds[0];
-                            }
-                        }
-                        return null;
-                    }
-                    catch
-                    {
-                        return null;
-                    }
-                });
+                var requestedAccountId = httpContext.Request.Headers.TryGetValue("X-TENANT-ID", out var accountIdHeader)
+                    && long.TryParse(accountIdHeader, out var accountId)
+                        ? accountId
+                        : (long?)null;
+                var userAccountId = await accountMembershipResolver.ResolveAccountIdAsync(identityName!, requestedAccountId, httpContext.RequestAborted);
 
                 if (!userAccountId.HasValue || userAccountId <= 0)
                 {
