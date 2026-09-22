@@ -81,6 +81,7 @@ namespace ChurrOS.Api.Data
             modelBuilder.Entity<Acl>().HasQueryFilter(mt => mt.AccountId == AccountId);
             modelBuilder.Entity<AclMember>().HasQueryFilter(mt => mt.AccountId == AccountId);
             modelBuilder.Entity<Domain.Environment>().HasQueryFilter(mt => mt.AccountId == AccountId);
+            modelBuilder.Entity<Llm>().HasQueryFilter(mt => mt.AccountId == AccountId);
             modelBuilder.Entity<Template>().HasQueryFilter(mt => mt.AccountId == AccountId);
             modelBuilder.Entity<TemplateCategory>().HasQueryFilter(mt => mt.AccountId == AccountId);
             modelBuilder.Entity<Identity>().HasQueryFilter(mt => mt.AccountId == AccountId);

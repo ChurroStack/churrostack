@@ -1,0 +1,244 @@
+@model ConsentViewModel
+@inject IStringLocalizer<Locale> Localizer
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>@Localizer["Authorize access"] — ChurroStack</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+            --bg: #f6f7f9;
+            --card-bg: #ffffff;
+            --text: #1a1d21;
+            --muted: #5b6470;
+            --border: #e2e5ea;
+            --accent: #2563eb;
+            --accent-contrast: #ffffff;
+            --warn-bg: #fff7e6;
+            --warn-border: #f0c36d;
+            --warn-text: #7a5300;
+            --danger-border: #d0d5dd;
+        }
+
+        @@media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0f1115;
+                --card-bg: #171a21;
+                --text: #e6e8eb;
+                --muted: #9aa3ae;
+                --border: #2a2f3a;
+                --accent: #3b82f6;
+                --accent-contrast: #0f1115;
+                --warn-bg: #2a2210;
+                --warn-border: #6b5210;
+                --warn-text: #f0c36d;
+                --danger-border: #333a47;
+            }
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 24px 16px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 440px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 28px 24px;
+        }
+
+        h1 {
+            font-size: 1.15rem;
+            margin: 0 0 4px;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 0.9rem;
+            margin: 0 0 20px;
+        }
+
+        .client-name {
+            font-weight: 600;
+        }
+
+        .unverified {
+            display: block;
+            color: var(--muted);
+            font-size: 0.78rem;
+            margin-top: 2px;
+        }
+
+        .redirect-box {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 0.85rem;
+            margin: 16px 0;
+        }
+
+        .redirect-box .host {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .loopback-warning {
+            background: var(--warn-bg);
+            border: 1px solid var(--warn-border);
+            color: var(--warn-text);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 0.82rem;
+            margin: 0 0 16px;
+        }
+
+        .scopes {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 20px;
+        }
+
+        .scopes li {
+            display: flex;
+            gap: 10px;
+            padding: 8px 0;
+            border-top: 1px solid var(--border);
+            font-size: 0.88rem;
+        }
+
+        .scopes li:first-child {
+            border-top: none;
+        }
+
+        .scope-dot {
+            flex: none;
+            width: 6px;
+            height: 6px;
+            margin-top: 7px;
+            border-radius: 50%;
+            background: var(--accent);
+        }
+
+        .scope-name {
+            font-weight: 600;
+        }
+
+        .scope-description {
+            color: var(--muted);
+            font-size: 0.8rem;
+            margin-top: 1px;
+        }
+
+        .identity {
+            font-size: 0.82rem;
+            color: var(--muted);
+            margin-bottom: 20px;
+        }
+
+        .identity strong {
+            color: var(--text);
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.92rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border);
+        }
+
+        button[name="submit.Accept"] {
+            background: var(--accent);
+            color: var(--accent-contrast);
+            border-color: var(--accent);
+        }
+
+        button[name="submit.Deny"] {
+            background: transparent;
+            color: var(--text);
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>
+            <span class="client-name">@Model.ApplicationName</span>
+            @Localizer["wants to access your ChurroStack account"]
+        </h1>
+        <p class="subtitle">
+            @Localizer["This app is not verified by ChurroStack. Only continue if you started this yourself."]
+        </p>
+
+        <div class="redirect-box">
+            @Localizer["The response will be sent to:"]
+            <div class="host">@Model.RedirectHost</div>
+        </div>
+
+        @if (Model.IsLoopbackRedirect)
+        {
+            <div class="loopback-warning">
+                @Localizer["This is a program running on your own computer. Any application on this machine could claim to be it — make sure you just started this connection yourself."]
+            </div>
+        }
+
+        <ul class="scopes">
+            @foreach (var scope in Model.Scopes)
+            {
+                <li>
+                    <span class="scope-dot" aria-hidden="true"></span>
+                    <span>
+                        <span class="scope-name">@scope.DisplayName</span>
+                        @if (!string.IsNullOrWhiteSpace(scope.Description))
+                        {
+                            <span class="scope-description">@scope.Description</span>
+                        }
+                    </span>
+                </li>
+            }
+        </ul>
+
+        <p class="identity">
+            @Localizer["Signing in as"] <strong>@Model.UserName</strong>
+        </p>
+
+        <form method="post" action="/oauth/authorize@(Model.QueryString)">
+            @Html.AntiForgeryToken()
+            @foreach (var parameter in Model.Parameters)
+            {
+                <input type="hidden" name="@parameter.Key" value="@parameter.Value" />
+            }
+            <div class="actions">
+                <button type="submit" name="submit.Deny" value="deny">@Localizer["Deny"]</button>
+                <button type="submit" name="submit.Accept" value="accept">@Localizer["Allow"]</button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

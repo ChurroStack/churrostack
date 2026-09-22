@@ -1,4 +1,5 @@
 ﻿using ChurrOS.Api.Data;
+using ChurrOS.Api;
 using ChurrOS.Api.Domain;
 using ChurrOS.Api.Domain.Auth;
 using ChurrOS.Api.Jobs;
@@ -113,6 +114,48 @@ namespace ChurrOS.Api.Utils
 
             // PWA/Native App
             await RegisterPwaNativeApplication(appManager, "app", ["api/.default"]);
+
+            // MCP scope: the resource/scope registered in Program.cs's AddServer(...) only
+            // configures server *options* (what discovery advertises, what a `resource`/`scope`
+            // parameter may request) -- it does not create a scope row. Without this row,
+            // OAuthController's identity.SetResources(await _scopeManager.ListResourcesAsync(...))
+            // resolves to nothing, no aud=<mcpResource> is stamped on issued tokens, and every /mcp
+            // request 403s against McpPolicy's audience check regardless of the token's validity.
+            var mcpResource = Program.GetMcpResource(configuration).AbsoluteUri;
+            var mcpScope = (OpenIdScope?)await scopeManager.FindByNameAsync("mcp");
+            if (mcpScope is null)
+            {
+                await scopeManager.CreateAsync(new OpenIdScope
+                {
+                    Name = "mcp",
+                    // LocalizationService.GetString falls back to the key itself when no resource
+                    // entry exists (this repo currently ships no .resx files at all), so the key is
+                    // written as the actual English copy rather than a PascalCase resource name --
+                    // this text is rendered directly on the OAuth consent screen.
+                    DisplayName = LocalizationService.GetString("ChurroStack MCP access"),
+                    Description = LocalizationService.GetString("Read your environments, applications and LLM configuration."),
+                    Resources = JsonSerializer.Serialize(new[] { mcpResource }, JsonSettings.Value)
+                });
+            }
+            else
+            {
+                var currentResources = await scopeManager.GetResourcesAsync(mcpScope);
+                // Exact single-element match, not Contains: a row holding this resource *plus* a
+                // stale one (left over from an earlier BaseUrl) would pass a Contains check
+                // untouched, and then stamp both onto every issued token's audience.
+                var isUpToDate = currentResources.Length == 1 &&
+                    string.Equals(currentResources[0], mcpResource, StringComparison.Ordinal);
+
+                if (!isUpToDate)
+                {
+                    // BaseUrl can change between deployments (custom domain, environment promotion)
+                    // after this row was first seeded. The scope row is otherwise never revisited,
+                    // so a stale Resources value would silently 403 every /mcp request with no
+                    // diagnostic pointing at this as the cause -- keep it in sync instead.
+                    mcpScope.Resources = JsonSerializer.Serialize(new[] { mcpResource }, JsonSettings.Value);
+                    await scopeManager.UpdateAsync(mcpScope);
+                }
+            }
         }
 
         public static async Task InitilizeTunnelUser(IConfiguration configuration, ChurrosDbContext context)

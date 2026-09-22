@@ -22,6 +22,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Localization;
@@ -29,6 +30,9 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Npgsql;
+using ModelContextProtocol.AspNetCore;
+using ModelContextProtocol.AspNetCore.Authentication;
+using HeaderNames = Microsoft.Net.Http.Headers.HeaderNames;
 using OpenIddict.Abstractions;
 using OpenIddict.Server;
 using OpenIddict.Validation.AspNetCore;
@@ -43,6 +47,7 @@ using System.Security.Cryptography.X509Certificates;
 #endif
 using System.Text;
 using System.Text.Json;
+using System.Threading.RateLimiting;
 using Yarp.ReverseProxy.Configuration;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -78,7 +83,13 @@ namespace ChurrOS.Api
             });
 
             builder.Services
-                .AddControllers(options =>
+                // AddControllersWithViews (not AddControllers): the OAuth consent screen
+                // (OAuthController.Authorize -> Views/OAuth/Consent.cshtml) is server-rendered HTML,
+                // not JSON -- it renders two attacker-controlled strings (a DCR client's self-asserted
+                // client_name and its redirect URI), so Razor's automatic HTML encoding is load-bearing.
+                // This also registers antiforgery services, which nothing in this project configured
+                // explicitly before now (see the explicit AddAntiforgery() call below).
+                .AddControllersWithViews(options =>
                 {
                     options.Filters.Add(new ResponseExceptionFilter());
                     options.InputFormatters.Add(new Utils.AspNet.TextInputFormatter());
@@ -88,6 +99,40 @@ namespace ChurrOS.Api
                     options.JsonSerializerOptions.ApplyDefaultOptions();
                     JsonSettings.Value = options.JsonSerializerOptions;
                 });
+
+            // Explicit rather than relying on AddControllersWithViews' implicit registration:
+            // OAuthController.Accept and LoginController.SignOut both carry
+            // [ValidateAntiForgeryToken], and the consent view calls IAntiforgery directly to emit
+            // the token, so this needs to be guaranteed present rather than assumed.
+            builder.Services.AddAntiforgery();
+
+            // /oauth/register (DCR) is anonymous, unauthenticated, and now accepts any https
+            // redirect_uri (not just loopback -- see OAuthController.Register), so it's reachable by
+            // anyone on the internet and creates a permanent OpenIddict application row per call.
+            // A minimal per-IP throttle, not an attempt at a full abuse-prevention system.
+            builder.Services.AddRateLimiter(options =>
+            {
+                // The middleware's own default (503) reads as "the server is down", not "you're
+                // being throttled" -- 429 is what RFC 6585 defines for this and what an OAuth/HTTP
+                // client actually expects to see and retry on.
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+                // AddFixedWindowLimiter (unpartitioned) would be one shared window for every
+                // caller -- one client exhausting it blocks every other client's registration for
+                // the rest of the window. AddPolicy + GetFixedWindowLimiter gives each remote IP
+                // its own window instead. RemoteIpAddress is safe to key on here specifically
+                // because app.UseForwardedHeaders() (below, with KnownProxies/KnownNetworks
+                // cleared) already runs ahead of this and rewrites it from X-Forwarded-For, so this
+                // is the real client IP behind nginx/YARP, not the proxy's.
+                options.AddPolicy("dcr", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 10,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0
+                    }));
+            });
 
             // Add service defaults & Aspire client integrations.
             builder.AddServiceDefaults();
@@ -178,7 +223,10 @@ namespace ChurrOS.Api
                             .Split(',', StringSplitOptions.RemoveEmptyEntries);
                         policy.WithOrigins(origins)
                             .AllowAnyHeader()
-                            .AllowAnyMethod();
+                            .AllowAnyMethod()
+                            // Lets browser-driven MCP clients read the 401 challenge's
+                            // WWW-Authenticate header cross-origin (not exposed by default).
+                            .WithExposedHeaders(HeaderNames.WWWAuthenticate);
                         // Credentials (the .AspNetCore.Cookies session co-issued by
                         // /oauth/token) require an explicit origin allow-list — the
                         // CORS spec forbids combining wildcard with credentials and
@@ -216,6 +264,23 @@ namespace ChurrOS.Api
                 options.ClaimsIdentity.UserNameClaimType = Claims.PreferredUsername;
                 options.ClaimsIdentity.RoleClaimType = "role";
             });
+
+            // The canonical resource identifier for the MCP server, reusing the same BaseUrl config
+            // key that already sets the OpenIddict issuer below. Computed once here (rather than
+            // inside any of the AddOpenIddict()/AddAuthentication() configuration lambdas) so it can
+            // be shared by the resource/scope registration, the MCP ResourceMetadata, and the
+            // McpPolicy audience check without re-reading configuration in each place. Also used by
+            // OAuthController.Register (its "rsrc:" permission) and MigrationExtension (seeding the
+            // "mcp" scope's Resources) -- GetMcpResource is the single source of truth so those three
+            // call sites can never drift apart on normalization.
+            var mcpResource = GetMcpResource(builder.Configuration);
+
+            // Shared with both the OpenIddict issuer (below) and the MCP ResourceMetadata's
+            // AuthorizationServers entry: discovery always publishes Issuer.AbsoluteUri, which for a
+            // host-only URI carries a trailing slash. Deriving both from the same Uri instance (rather
+            // than one from Issuer.AbsoluteUri and the other from BaseUrl.TrimEnd('/')) guarantees a
+            // byte-exact match, which RFC 8414 §3.3 issuer comparisons require.
+            var issuerUri = new Uri(builder.Configuration["BaseUrl"]!);
 
             // Register the OpenIddict server components.
             builder.Services.AddOptions();
@@ -259,7 +324,7 @@ namespace ChurrOS.Api
                     }
 #endif
 
-                    options.Configure(config => { config.Issuer = new Uri(builder.Configuration["BaseUrl"]!); });
+                    options.Configure(config => { config.Issuer = issuerUri; });
 
                     // Enable the token endpoint.
                     options
@@ -322,6 +387,59 @@ namespace ChurrOS.Api
                                 {
                                     context.Reject(error: Errors.InvalidRequest, description: "Invalid redirect_uri parameter.", uri: null);
                                 }
+
+                                return;
+                            }
+
+                            if (!Uri.TryCreate(context.RedirectUri, UriKind.Absolute, out var redirectUri))
+                            {
+                                context.Reject(error: Errors.InvalidRequest, description: "Invalid redirect_uri parameter.", uri: null);
+                                return;
+                            }
+
+                            var httpRequest = context.Transaction.GetHttpRequest()!;
+
+                            // Three client-type-specific rules, not a blanket exact/none check. Neither
+                            // "api" nor "app" compares against httpRequest.Scheme: the defence-in-depth
+                            // middleware later in this file unconditionally forces Request.Scheme to
+                            // "https" before OpenIddict's pipeline runs, so by the time this handler
+                            // executes httpRequest.Scheme is always "https" -- comparing against it would
+                            // reject genuine http loopback traffic (local dev, native/CLI clients) rather
+                            // than validate anything. IsSameOriginRedirectUri checks the *redirect_uri's*
+                            // own scheme instead (https required, except for a loopback host).
+                            //  - "api" (confidential): only ever used for its fixed self-loopback OIDC
+                            //    callback (Program.cs AddOpenIdConnect CallbackPath="/login/signin-oidc").
+                            //    Matched by same-origin + exact path rather than a BaseUrl-derived literal,
+                            //    because the OIDC handler builds its redirect_uri from the *live* request
+                            //    host (ASP.NET's OpenIdConnectHandler default), which only equals BaseUrl
+                            //    when the app happens to be reached through that exact host.
+                            //  - "app" (PWA, public): oidc-spa derives its redirect from
+                            //    window.location.origin + the app's Vite BASE_URL ("/", per
+                            //    vite.config.ts), never from the current page path -- verified directly
+                            //    against oidc-spa's homeAndRedirectUri.js source. So the PWA's redirect_uri
+                            //    is always exactly "<origin>/", one fixed path, not an open set: matched by
+                            //    same-origin + exact path "/". Requiring the path (not just the origin)
+                            //    closes off tenant-controlled same-origin paths like /share/{app}/{port} as
+                            //    redirect targets.
+                            //  - everything else: a DCR-registered public client (see OAuthController.Register).
+                            //    Native/CLI clients can't predict their ephemeral local port (RFC 8252 §7.3),
+                            //    so a *registered* loopback host matches any incoming port; the exemption is
+                            //    gated on the registered host, not the incoming one.
+                            var isValid = context.ClientId switch
+                            {
+                                "api" => IsApiRedirectUri(redirectUri, httpRequest.Host.Host),
+
+                                "app" => IsAppRedirectUri(redirectUri, httpRequest.Host.Host),
+
+                                _ => await IsRegisteredLoopbackAwareRedirectUriAsync(
+                                    httpRequest.HttpContext.RequestServices.GetRequiredService<IOpenIddictApplicationManager>(),
+                                    context.ClientId!,
+                                    redirectUri),
+                            };
+
+                            if (!isValid)
+                            {
+                                context.Reject(error: Errors.InvalidRequest, description: "Invalid redirect_uri parameter.", uri: null);
                             }
                         });
 
@@ -330,6 +448,36 @@ namespace ChurrOS.Api
 
 
                     options.IgnoreScopePermissions();
+
+                    // MCP server resource/scope: OpenIddict validates the RFC 8707 `resource`
+                    // request parameter by default (DisableResourceValidation defaults to false),
+                    // so registering it here is required -- without it every MCP client's
+                    // authorize/token request fails invalid_target before a browser even opens.
+                    // RegisterResources/RegisterScopes only configure server *options* (what
+                    // discovery advertises and what a `resource`/`scope` parameter is allowed to
+                    // request) -- they do NOT create a scope row in the store. The actual
+                    // aud=<mcpResource> stamping in OAuthController (via
+                    // identity.SetResources(await _scopeManager.ListResourcesAsync(...))) reads
+                    // ListResourcesAsync, which is purely store-backed and knows nothing about these
+                    // options. The "mcp" scope's row (with mcpResource in its Resources) is seeded in
+                    // MigrationExtension.RegisterApplications, the same place the "api"/"app"
+                    // applications and the "api/.default" scope are seeded -- without that row, every
+                    // MCP token request/response omits aud=<mcpResource> and McpPolicy always 403s.
+                    options.RegisterResources(mcpResource.AbsoluteUri);
+                    options.RegisterScopes("mcp");
+
+                    // Advertise the DCR endpoint (OAuthController.Register) in discovery.
+                    // OpenIddict has no built-in RFC 7591 support (tracked upstream in
+                    // openiddict-core#2404, unimplemented even in the 8.0 previews), so this is
+                    // metadata injection only -- the endpoint itself is a plain controller action.
+                    options.AddEventHandler<OpenIddictServerEvents.HandleConfigurationRequestContext>(handlerBuilder =>
+                    {
+                        handlerBuilder.UseInlineHandler(context =>
+                        {
+                            context.Metadata["registration_endpoint"] = new Uri(mcpResource, "/oauth/register").AbsoluteUri;
+                            return default;
+                        });
+                    });
 
                     // Register custom scope validator
                     options.AddEventHandler<OpenIddictServerEvents.ValidateTokenRequestContext>(builder =>
@@ -478,6 +626,25 @@ namespace ChurrOS.Api
                 });
             }
 
+            authBuilder.AddMcp(options =>
+            {
+                // The SDK default (ForwardAuthenticate = "Bearer") targets a bare JwtBearer scheme
+                // name that doesn't exist in this app -- tokens are validated by OpenIddict's own
+                // validation scheme, so authentication would silently no-op (blanket 401) without
+                // this override.
+                options.ForwardAuthenticate = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
+                options.ResourceMetadata = new()
+                {
+                    Resource = mcpResource.AbsoluteUri,
+                    // issuerUri.AbsoluteUri, not BaseUrl.TrimEnd('/'): discovery publishes
+                    // config.Issuer.AbsoluteUri (set from this same issuerUri above), which for a
+                    // host-only URI always carries a trailing slash. A client doing a byte-exact
+                    // RFC 8414 §3.3 issuer comparison would otherwise abort discovery.
+                    AuthorizationServers = { issuerUri.AbsoluteUri },
+                    ScopesSupported = ["mcp"],
+                };
+            });
+
             builder.Services.AddAuthorization(options =>
             {
                 options.AddPolicy("JwtOrApiKeyPolicy", policy =>
@@ -518,6 +685,28 @@ namespace ChurrOS.Api
                         .AddAuthenticationSchemes([ApiKeyAuthenticationHandler.SchemeName, CookieAuthenticationDefaults.AuthenticationScheme])
                         .RequireAuthenticatedUser()
                         .AddRequirements(new ApplicationMemberAccessRequirement());
+                });
+
+                options.AddPolicy("McpPolicy", policy =>
+                {
+                    // McpAuthenticationHandler.HandleAuthenticateAsync always returns NoResult();
+                    // its ForwardAuthenticate (set above, in AddMcp) transparently delegates the
+                    // actual authentication work to OpenIddict's validation scheme, while its
+                    // *challenge* is handled directly by McpAuthenticationHandler, which emits the
+                    // WWW-Authenticate: Bearer resource_metadata="..." header MCP clients require.
+                    // A dedicated policy (rather than flipping the app's global default schemes) is
+                    // what lets /mcp opt into that behavior without changing every other endpoint's
+                    // existing 401/challenge behavior.
+                    policy.AddAuthenticationSchemes(McpAuthenticationDefaults.AuthenticationScheme);
+                    policy.RequireAuthenticatedUser();
+
+                    // Audience and scope both live under OpenIddict's private "oi_" claim
+                    // prefix on the validated principal, not the public "aud"/"scope" claim
+                    // types -- confirmed against OpenIddictValidationHandlers.Protection.cs,
+                    // which falls back from "oi_aud" to the standard "aud" claim only if "oi_aud"
+                    // is absent, and otherwise always re-derives "oi_aud" from it up front.
+                    policy.RequireClaim(Claims.Private.Scope, "mcp");
+                    policy.RequireClaim(Claims.Private.Audience, mcpResource.AbsoluteUri);
                 });
             });
 
@@ -593,6 +782,16 @@ namespace ChurrOS.Api
             builder.Services.AddTelemetryConsumer<HttpClientTelemetryConsumer>();
             builder.Services.AddTelemetryConsumer<WebSocketsTelemetryConsumer>();
 
+            builder.Services.AddMcpServer()
+                .WithTools<ChurrOS.Api.Mcp.ChurrosMcpTools>()
+                .WithHttpTransport(options =>
+                {
+                    // Recommended for servers that don't need 2025-11-25 protocol revision
+                    // server-to-client requests like sampling or elicitation (we don't): enables
+                    // horizontal scaling without session affinity.
+                    options.SessionMode = HttpServerSessionMode.Stateless;
+                });
+
             var app = builder.Build();
 
             app.MapDefaultEndpoints();
@@ -655,9 +854,11 @@ namespace ChurrOS.Api
             app.UseAuthentication();
             app.UseMiddleware<MultiTenantMiddleware>();
             app.UseRouting();
+            app.UseRateLimiter();
             app.UseAuthorization();
             app.MapHub<NotificationHub>("/api/notifications");
             app.MapControllers();
+            app.MapMcp("/mcp").RequireAuthorization("McpPolicy");
 
             var localizer = app.Services.GetRequiredService<IStringLocalizer<Locale>>();
             LocalizationService.Initialize(localizer);
@@ -883,6 +1084,109 @@ namespace ChurrOS.Api
             await proxyConfig.Initialize();
 
             app.Run();
+        }
+
+        // OAuth 2.1 / RFC 8252 §7.3: native/CLI public clients (DCR-registered MCP clients) can't
+        // predict which ephemeral local port they'll bind, so a *registered* loopback redirect_uri
+        // matches any incoming port on the same host+scheme+path. Non-loopback registered URIs
+        // still require an exact match including port. The exemption is gated on the registered
+        // host being loopback, not the incoming one, so a client can't claim it by registering a
+        // non-loopback host.
+        // internal (not private): OAuthController.Register also reads this, so DCR-issued
+        // clients and this validator can never drift apart on what counts as loopback.
+        internal static readonly string[] LoopbackHosts = ["127.0.0.1", "::1", "localhost"];
+
+        // Uri.Host renders an IPv6 literal in bracket notation ("[::1]"), which never matches the
+        // bracket-free "::1" entry in LoopbackHosts above -- so every direct LoopbackHosts.Contains
+        // call site (this file's IsRegisteredLoopbackAwareRedirectUriAsync/IsSameOriginRedirectUri,
+        // and OAuthController.Register) goes through this instead, which strips the brackets first.
+        internal static bool IsLoopbackHost(string host)
+            => LoopbackHosts.Contains(host.Trim('[', ']'), StringComparer.OrdinalIgnoreCase);
+
+        // Computes the canonical MCP resource identifier from configuration. A single source of
+        // truth for the three call sites that all need the exact same value: Main (resource/scope
+        // registration, ResourceMetadata, McpPolicy's audience check), OAuthController.Register (the
+        // "rsrc:" permission on DCR-issued clients), and MigrationExtension (seeding the "mcp"
+        // scope's Resources) -- three independent `new Uri(new Uri(BaseUrl), "mcp")` expressions
+        // with differing normalization was a drift bug waiting to happen, and McpPolicy compares the
+        // audience by exact string.
+        internal static Uri GetMcpResource(IConfiguration configuration)
+            => new(new Uri(configuration["BaseUrl"]!), "mcp");
+
+        // The "api" and "app" clients have no fixed registered redirect_uri to compare against (see
+        // the rationale at the AddServer(...) call site in Main), so both are validated against the
+        // current request's own origin instead, plus a fixed path checked separately by each caller.
+        // Does NOT compare scheme against the *request's* scheme: the defence-in-depth middleware in
+        // Main unconditionally forces Request.Scheme to "https" before OpenIddict's pipeline runs, so
+        // the request's scheme is never a meaningful signal here. Instead this requires the
+        // redirect_uri itself to be https, with an exemption for a loopback host (local dev has no
+        // way to get valid TLS for localhost).
+        //
+        // Known gap, deliberately not closed here: this also does not compare port, so it is not a
+        // strict RFC 6454 same-origin check -- a listener on the same host but a different port
+        // (e.g. a debug endpoint or misconfigured sidecar) would pass. Left open because requestHost
+        // comes from HostString.Host, which never carries a port, and normalizing "no port" against
+        // an implicit default (443) would be wrong for a deployment genuinely fronted on a
+        // non-standard port -- nginx's $host (see nginx.conf's X-Forwarded-Host) doesn't preserve
+        // one either, so there's no reliable signal to compare against without broader changes to
+        // that trust chain. The load-bearing fix for host spoofing is nginx.conf always overwriting
+        // X-Forwarded-Host with $host rather than passing a client-supplied one through.
+        internal static bool IsSameOriginRedirectUri(Uri redirectUri, string requestHost)
+            => string.Equals(redirectUri.Host, requestHost, StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(redirectUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+                    || IsLoopbackHost(redirectUri.Host));
+
+        // "api" is only ever used for its one fixed self-loopback OIDC callback path -- see the
+        // longer rationale at the AddServer(...) call site in Main.
+        internal static bool IsApiRedirectUri(Uri redirectUri, string requestHost)
+            => IsSameOriginRedirectUri(redirectUri, requestHost)
+                && string.Equals(redirectUri.AbsolutePath, "/login/signin-oidc", StringComparison.Ordinal);
+
+        // "app" (the PWA) always redirects to exactly "<origin>/" -- verified directly against
+        // oidc-spa's source, see the longer rationale at the AddServer(...) call site in Main.
+        // Requiring the exact path (not just the origin) closes off tenant-controlled same-origin
+        // paths like /share/{app}/{port} as redirect targets.
+        internal static bool IsAppRedirectUri(Uri redirectUri, string requestHost)
+            => IsSameOriginRedirectUri(redirectUri, requestHost)
+                && string.Equals(redirectUri.AbsolutePath, "/", StringComparison.Ordinal);
+
+        internal static async Task<bool> IsRegisteredLoopbackAwareRedirectUriAsync(
+            IOpenIddictApplicationManager applicationManager, string clientId, Uri redirectUri)
+        {
+            var application = await applicationManager.FindByClientIdAsync(clientId);
+            if (application is null)
+            {
+                return false;
+            }
+
+            foreach (var registered in await applicationManager.GetRedirectUrisAsync(application))
+            {
+                if (!Uri.TryCreate(registered, UriKind.Absolute, out var registeredUri))
+                {
+                    continue;
+                }
+
+                var sameScheme = string.Equals(registeredUri.Scheme, redirectUri.Scheme, StringComparison.OrdinalIgnoreCase);
+                var sameHost = string.Equals(registeredUri.Host, redirectUri.Host, StringComparison.OrdinalIgnoreCase);
+                var samePath = string.Equals(registeredUri.AbsolutePath, redirectUri.AbsolutePath, StringComparison.Ordinal);
+
+                if (!sameScheme || !sameHost || !samePath)
+                {
+                    continue;
+                }
+
+                if (IsLoopbackHost(registeredUri.Host))
+                {
+                    return true;
+                }
+
+                if (registeredUri.Port == redirectUri.Port)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }
