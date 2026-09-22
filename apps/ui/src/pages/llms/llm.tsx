@@ -2,6 +2,7 @@ import { LoadingSkeleton } from '@/components/loading-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { useGetLlm } from '@/hooks/data/llms';
+import { useMyPermission } from '@/hooks/data/identities';
 import { AlertCircle, Brain, ChartNoAxesCombined, Cog, Plug, Sparkles, UserLock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,10 +19,11 @@ const Llm = () => {
   const { id } = useParams();
   const { fetchAsync, data, isFetching, error } = useGetLlm(id ?? '');
   const [llm, setLlm] = useState(data);
+  const { canManage } = useMyPermission(llm?.members);
 
   useEffect(() => {
     fetchAsync('').then((response) => {
-      setLlm(response?.data);
+      if (response?.data) setLlm(response.data);
     });
   }, [id]);
 
@@ -99,7 +101,7 @@ const Llm = () => {
             <MonitorPanel llm={llm} />
           </TabsContent>
           <TabsContent value="security" className="flex flex-col min-h-0 w-full h-full">
-            <AccessPanel llm={llm} />
+            <AccessPanel llm={llm} canManage={canManage} onUpdated={setLlm} />
           </TabsContent>
         </Tabs>
       </div>

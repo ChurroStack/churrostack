@@ -99,7 +99,7 @@ const Environment = () => {
   useEffect(() => {
     resetRotateEnvironmentKeys();
     fetchAsync('').then((response) => {
-      setEnvironment(response?.data);
+      if (response?.data) setEnvironment(response.data);
       if (response?.data?.provisionStatus === 'pending') {
         setDefaultView('setup');
       } else {
@@ -110,7 +110,7 @@ const Environment = () => {
     return subscribe((message) => {
       if (message.target === 'environment' && message.name === id) {
         fetchAsync('').then((result) => {
-          setEnvironment(result.data);
+          if (result.data) setEnvironment(result.data);
         });
       }
     });
@@ -491,7 +491,7 @@ const Environment = () => {
             <EnvironmentResourcesPanel environment={environment} />
           </TabsContent>
           <TabsContent value="security" className="flex flex-col min-h-0 w-full h-full">
-            <AccessPanel environment={environment!} />
+            <AccessPanel environment={environment!} canManage={canManage} onUpdated={setEnvironment} />
           </TabsContent>
         </Tabs>
       </div>

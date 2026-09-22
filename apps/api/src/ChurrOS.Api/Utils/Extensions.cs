@@ -99,45 +99,53 @@ namespace ChurrOS.Api.Utils
             return authorizedKey;
         }
 
-        public static async Task<long[]> UpdateAclAsync(this IMediator mediator, List<long> membersToPurge, ChurrosDbContext context, long accountId, long aclId, MemberItem[] memberItems, CancellationToken cancellationToken)
+        public static async Task<long[]> UpdateAclAsync(this IMediator mediator, List<long> membersToPurge, ChurrosDbContext context, long accountId, long aclId, MemberItem[] memberItems, ILogger logger, CancellationToken cancellationToken)
         {
             var updatedMemberIds = new List<long>();
 
-            var allIdentities = memberItems
-                .Select(o => o.IdentityName)
-                .Distinct()
-                .ToArray();
+            // Dedupe the requested set by name (case-insensitive, matching identity resolution); last one wins.
+            var requestedMembers = new Dictionary<string, MemberItem>(StringComparer.OrdinalIgnoreCase);
+            foreach (var member in memberItems)
+                requestedMembers[member.IdentityName] = member;
 
-            // Delete existing members not in the new list
-            await context.Set<Domain.AclMember>()
-                .Include(o => o.Identity)
-                .Where(o => o.AclId == aclId && !allIdentities.Contains(o.Identity!.Name))
-                .ExecuteDeleteAsync(cancellationToken);
-
-            // Get existing members
             var existingMembers = await context.Set<Domain.AclMember>()
                 .Include(o => o.Identity)
                 .Where(o => o.AclId == aclId)
-                .ToDictionaryAsync(o => o.Identity!.Name, o => o, cancellationToken);
+                .ToDictionaryAsync(o => o.Identity!.Name, o => o, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
-            membersToPurge.AddRange(existingMembers.Values.Select(o => o.Identity.Id));
+            membersToPurge.AddRange(existingMembers.Values.Select(o => o.IdentityId));
 
-            foreach (var member in memberItems)
+            // Stage removals; they are only persisted by the caller's SaveChangesAsync, alongside
+            // the additions/updates below, so a failure partway through this method (e.g. an
+            // unresolvable identity) leaves the existing ACL untouched.
+            var toRemove = existingMembers.Where(kvp => !requestedMembers.ContainsKey(kvp.Key)).Select(kvp => kvp.Value).ToArray();
+            if (toRemove.Length > 0)
+                context.Set<Domain.AclMember>().RemoveRange(toRemove);
+
+            var addedCount = 0;
+            var updatedCount = 0;
+            foreach (var member in requestedMembers.Values)
             {
                 if (existingMembers.TryGetValue(member.IdentityName, out var existingMember))
                 {
-                    // Update existing member
                     existingMember.Permission = member.Permission;
                     updatedMemberIds.Add(existingMember.IdentityId);
+                    updatedCount++;
                 }
                 else
                 {
-                    // Add new member
                     var identityId = await mediator.Send(new GetIdentityId(member.IdentityName), cancellationToken);
+                    if (identityId == 0)
+                        throw new NotFoundException($"Identity '{member.IdentityName}' was not found.");
+
                     await context.Set<Domain.AclMember>().AddAsync(new Domain.AclMember(accountId, aclId, identityId, member.Permission));
                     updatedMemberIds.Add(identityId);
+                    addedCount++;
                 }
             }
+
+            logger.LogInformation("[AclMembership] accountId={AccountId} aclId={AclId} added={Added} updated={Updated} removed={Removed}",
+                accountId, aclId, addedCount, updatedCount, toRemove.Length);
 
             return updatedMemberIds.Distinct().ToArray();
         }

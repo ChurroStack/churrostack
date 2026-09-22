@@ -84,7 +84,7 @@ namespace ChurrOS.Api.Commands.Llm
                         {
                             if (!await _mediator.Send(new IsAdminOrHasAcl(llm.AclId, Permission.Manage), cancellationToken))
                                 throw new UnauthorizedAccessException("You do not have permission to manage this LLM security members.");
-                            updatedMembers = await _mediator.UpdateAclAsync(membersToPurge, _context, _tenantResolver.AccountId, llm.AclId, entry.Value.Deserialize<MemberItem[]>(JsonSettings.Value)!, cancellationToken);
+                            updatedMembers = await _mediator.UpdateAclAsync(membersToPurge, _context, _tenantResolver.AccountId, llm.AclId, entry.Value.Deserialize<MemberItem[]>(JsonSettings.Value)!, _logger, cancellationToken);
                             break;
                         }
                     default:

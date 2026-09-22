@@ -20,7 +20,7 @@ namespace ChurrOS.Api.Commands.Identity
 
         public async ValueTask<long> Handle(GetIdentityId request, CancellationToken cancellationToken)
         {
-            return await _cacheService.GetOrAddAsync($"tenant:{_tenantResolver.AccountId}:identity:{request.Name}:id", async entry =>
+            return await _cacheService.GetOrAddAsync($"tenant:{_tenantResolver.AccountId}:identity:{request.Name.ToLower()}:id", async entry =>
             {
                 entry.SetAbsoluteExpiration(TimeSpan.FromMinutes(5));
                 return await _dbContext.Set<Domain.Identity>()

@@ -125,7 +125,7 @@ namespace ChurrOS.Api.Commands.Applications
                                     throw new UnauthorizedAccessException("You do not have permission to manage this application security members.");
 
                                 var newMembers = entry.Value.Deserialize<MemberItem[]>(JsonSettings.Value)!;
-                                updatedMembers = await _mediator.UpdateAclAsync(membersToPurge, _context, _tenantResolver.AccountId, app.AclId, newMembers, cancellationToken);
+                                updatedMembers = await _mediator.UpdateAclAsync(membersToPurge, _context, _tenantResolver.AccountId, app.AclId, newMembers, _logger, cancellationToken);
                                 break;
                             }
                         case "metadata":
