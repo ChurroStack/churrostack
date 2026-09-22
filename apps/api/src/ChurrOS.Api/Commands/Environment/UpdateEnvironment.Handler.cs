@@ -3,8 +3,6 @@ using ChurrOS.Api.Data;
 using ChurrOS.Api.Models.Dtos.Environment;
 using ChurrOS.Api.Models.Dtos.Identity;
 using ChurrOS.Api.Services;
-using ChurrOS.Api.Services.Security;
-using ChurrOS.Api.Services.Share;
 using ChurrOS.Api.Utils;
 using ChurrOS.Api.Utils.Exceptions;
 using DispatchR;
@@ -17,8 +15,6 @@ namespace ChurrOS.Api.Commands.Environment
     {
         private readonly ChurrosDbContext _dbContext;
         private readonly IMediator _mediator;
-        private readonly RunnerService _runnerService;
-        private readonly ProxyConfigurationProvider _proxyConfigurationProvider;
         private readonly ClientNotificationService _clientNotificationService;
         private readonly ITenantResolver _tenantResolver;
         private readonly ICacheService _cacheService;
@@ -27,8 +23,6 @@ namespace ChurrOS.Api.Commands.Environment
         public UpdateEnvironmentHandler(
             ChurrosDbContext dbContext,
             IMediator mediator,
-            RunnerService runnerService,
-            ProxyConfigurationProvider proxyConfigurationProvider,
             ClientNotificationService clientNotificationService,
             ITenantResolver tenantResolver,
             ICacheService cacheService,
@@ -36,8 +30,6 @@ namespace ChurrOS.Api.Commands.Environment
         {
             _dbContext = dbContext;
             _mediator = mediator;
-            _runnerService = runnerService;
-            _proxyConfigurationProvider = proxyConfigurationProvider;
             _clientNotificationService = clientNotificationService;
             _tenantResolver = tenantResolver;
             _cacheService = cacheService;
@@ -46,12 +38,20 @@ namespace ChurrOS.Api.Commands.Environment
 
         public async ValueTask<EnvironmentItem> Handle(UpdateEnvironment request, CancellationToken cancellationToken)
         {
-            await _mediator.Send(new EnsureHasRole(IdentityRole.Administrator, _dbContext.IdentityId), cancellationToken);
-
             var environment = await _dbContext.Set<Domain.Environment>().FirstOrDefaultAsync(o => o.Name == request.Name);
 
             if (environment is null)
                 throw new NotFoundException();
+
+            if (!await _mediator.Send(new IsAdminOrHasAcl(environment.AclId, Permission.Manage), cancellationToken))
+            {
+                _logger.LogInformation("[Authorization] accountId={AccountId} identityId={IdentityId} action=UpdateEnvironment environmentAclId={AclId} decision=denied",
+                    _tenantResolver.AccountId, _dbContext.IdentityId, environment.AclId);
+                throw new UnauthorizedAccessException("You do not have permission to manage this environment's access.");
+            }
+
+            _logger.LogInformation("[Authorization] accountId={AccountId} identityId={IdentityId} action=UpdateEnvironment environmentAclId={AclId} decision=allowed",
+                _tenantResolver.AccountId, _dbContext.IdentityId, environment.AclId);
 
             environment.ModifiedAt = DateTimeOffset.Now;
             environment.ModifiedById = _dbContext.IdentityId;
@@ -59,39 +59,9 @@ namespace ChurrOS.Api.Commands.Environment
             if (request.Body.Tags is not null)
                 environment.Tags = TagsHelper.Normalize(request.Body.Tags);
 
-            // Tag-only edits skip the runner reconnect/template sync below to avoid a
-            // multi-second round-trip (and a transient "Provisioning" state) for a metadata-only
-            // change. Triggered only when Tags is provided and Members is absent/empty.
-            var membersChanging = request.Body.Members is { Length: > 0 };
-            if (!membersChanging && request.Body.Tags is not null)
-            {
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                await _clientNotificationService.NotifyChangeAsync(environment.AccountId, environment.Name, ClientNotificationService.NotificationTargetType.Environment, cancellationToken);
-                return await _mediator.Send(new GetEnvironmentByName(request.Name), cancellationToken);
-            }
-
-            var parts = environment.EncryptionKey.Split(':');
-            var encryptionKey = AesGcmEncryption.Decrypt(parts[0], _dbContext.AccountEncryptionKey, parts[1]);
-            var client = _runnerService.CreateClient(environment.Host[1], environment.Name, environment.Port, encryptionKey);
-            var envDef = await client.ConnectAsync(cancellationToken);
-            environment.Definition = envDef;
-            environment.ProvisionStatus = EnvironmentProvisionStatus.Provisioning;
-            await _dbContext.SaveChangesAsync(cancellationToken);
-
-            var templates = await _dbContext.Set<Domain.Template>().Where(o => o.Target == environment.Type)
-                .Select(o => o.Content)
-                .ToListAsync();
-
-            foreach (var template in templates)
-            {
-                await client.RegisterTemplateAsync(template, cancellationToken);
-            }
-
-            environment.ProvisionStatus = EnvironmentProvisionStatus.Provisioned;
-
             long[]? updatedMembers = null;
             List<long>? membersToPurge = null;
-            if (request.Body.Members != null && request.Body.Members.Any())
+            if (request.Body.Members is not null)
             {
                 membersToPurge = await _dbContext.Set<Domain.AclMember>()
                     .Include(o => o.Identity)
@@ -99,13 +69,10 @@ namespace ChurrOS.Api.Commands.Environment
                     .Select(o => o.Identity!.Id)
                     .ToListAsync(cancellationToken);
 
-                updatedMembers = await _mediator.UpdateAclAsync(membersToPurge, _dbContext, _tenantResolver.AccountId, environment.AclId, request.Body.Members, cancellationToken);
+                updatedMembers = await _mediator.UpdateAclAsync(membersToPurge, _dbContext, _tenantResolver.AccountId, environment.AclId, request.Body.Members, _logger, cancellationToken);
             }
 
             await _dbContext.SaveChangesAsync(cancellationToken);
-
-            _proxyConfigurationProvider.AddEnvironment(environment.Name, environment.Host[1], environment.Port);
-            _proxyConfigurationProvider.Reload();
 
             await _clientNotificationService.NotifyChangeAsync(environment.AccountId, environment.Name, ClientNotificationService.NotificationTargetType.Environment, cancellationToken);
 

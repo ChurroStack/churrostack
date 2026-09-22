@@ -116,7 +116,7 @@ const Application = () => {
     return subscribe((message) => {
       if (message.target === 'application' && message.name === id) {
         fetchAsync('').then((result) => {
-          setApp(result.data);
+          if (result.data) setApp(result.data);
         });
       }
     });
@@ -186,7 +186,7 @@ const Application = () => {
 
   useEffect(() => {
     fetchAsync('').then((result) => {
-      setApp(result.data);
+      if (result.data) setApp(result.data);
     });
   }, [id]);
 
@@ -456,7 +456,7 @@ const Application = () => {
             <PortsPanel application={app!} />
           </TabsContent>
           <TabsContent value="security" className="flex flex-col min-h-0 w-full h-full">
-            <AccessPanel application={app!} />
+            <AccessPanel application={app!} canManage={canManage} onUpdated={setApp} />
           </TabsContent>
           <TabsContent value="deployments" className="flex flex-col min-h-0 w-full h-full">
             <DeploymentsPanel application={app!} />
