@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/ChurroStack/churrostack/compare/v1.9.0...v1.9.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* **api,ui:** environment managers can manage members + atomic ACL updates ([#54](https://github.com/ChurroStack/churrostack/issues/54)) ([2cd926d](https://github.com/ChurroStack/churrostack/commit/2cd926df13fb441c879532ba01e6514905485e53))
+
 ## [1.9.0](https://github.com/ChurroStack/churrostack/compare/v1.8.1...v1.9.0) (2026-07-30)
 
 
