@@ -53,7 +53,13 @@ namespace ChurrOS.Api.Models.Dtos.Template.Definition
         /// </summary>
         public IDictionary<string, string>? Translation { get; set; }
 
-        public PortDefinition(string name, string title, string icon, string description, int port, ProtocolType protocol, string? uri, IList<IDictionary<string, string>>? transforms, AuthenticationMode authentication, SharingMode sharing, IDictionary<string, string>? translation)
+        /// <summary>
+        /// Path (and optional query string) appended to the base share URL when the user
+        /// launches this port from the UI, e.g. "/a/b/c?q=v". Does not affect proxy routing.
+        /// </summary>
+        public string? LaunchPath { get; set; }
+
+        public PortDefinition(string name, string title, string icon, string description, int port, ProtocolType protocol, string? uri, IList<IDictionary<string, string>>? transforms, AuthenticationMode authentication, SharingMode sharing, IDictionary<string, string>? translation, string? launchPath = null)
         {
             Name = name;
             Title = title;
@@ -66,6 +72,7 @@ namespace ChurrOS.Api.Models.Dtos.Template.Definition
             Authentication = authentication;
             Sharing = sharing;
             Translation = translation;
+            LaunchPath = launchPath;
         }
     }
 }

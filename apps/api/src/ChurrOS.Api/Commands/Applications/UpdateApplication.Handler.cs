@@ -235,8 +235,38 @@ namespace ChurrOS.Api.Commands.Applications
                 existingPort.Authentication = port.Authentication;
                 existingPort.Sharing = port.Sharing;
                 existingPort.Port = port.Port.HasValue && port.Port > 0 ? port.Port.Value : existingPort.Port;
+                var newLaunchPath = NormalizeLaunchPath(port.LaunchPath, existingPort.LaunchPath);
+                if (newLaunchPath != existingPort.LaunchPath)
+                {
+                    _logger.LogInformation("Application {ApplicationName} port {PortName} launch path {Action}", app.Name, port.Name, string.IsNullOrEmpty(newLaunchPath) ? "cleared" : "updated");
+                    existingPort.LaunchPath = newLaunchPath;
+                }
             }
             app.Ports = JsonSerializer.SerializeToElement(app.Ports ?? [], JsonSettings.Value).Deserialize<PortDefinition[]>(JsonSettings.Value);
+        }
+
+        /// <summary>
+        /// Null leaves the currently stored launch path unchanged (the same convention as
+        /// <c>Port</c>, so a bulk save from the ports panel that didn't touch this field can't
+        /// wipe it). An empty/whitespace string clears it. Any other value must start with
+        /// '/', '?' or '#' so it composes onto the base share URL without an extra separator.
+        /// </summary>
+        internal static string? NormalizeLaunchPath(string? requested, string? current)
+        {
+            if (requested is null)
+                return current;
+
+            var trimmed = requested.Trim();
+            if (trimmed.Length == 0)
+                return null;
+
+            if (trimmed.Length > 2048)
+                throw new ArgumentException("Launch path must be at most 2048 characters.");
+
+            if (trimmed[0] != '/' && trimmed[0] != '?' && trimmed[0] != '#')
+                throw new ArgumentException("Launch path must start with '/', '?' or '#'.");
+
+            return trimmed;
         }
     }
 }

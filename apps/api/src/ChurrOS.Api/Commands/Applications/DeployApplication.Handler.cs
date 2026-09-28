@@ -109,6 +109,7 @@ namespace ChurrOS.Api.Commands.Applications
                     {
                         templatePort.Authentication = existingPort.Authentication;
                         templatePort.Sharing = existingPort.Sharing;
+                        templatePort.LaunchPath = existingPort.LaunchPath;
                     }
                     ports.Add(templatePort);
                 }
@@ -144,6 +145,7 @@ namespace ChurrOS.Api.Commands.Applications
                             {
                                 templatePort.Authentication = existingPort.Authentication;
                                 templatePort.Sharing = existingPort.Sharing;
+                                templatePort.LaunchPath = existingPort.LaunchPath;
                             }
                             ports.Add(templatePort);
                         }

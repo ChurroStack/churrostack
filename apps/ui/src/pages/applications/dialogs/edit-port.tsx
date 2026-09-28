@@ -8,8 +8,9 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Field, FieldGroup, FieldLabel, FieldSet } from '@/components/ui/field';
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldSet } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/components/ui/input-group';
 import { Spinner } from '@/components/ui/spinner';
 import { useUpdateApplication, type PortDefinition } from '@/hooks/data/applications';
 import { AlertCircle } from 'lucide-react';
@@ -33,18 +34,31 @@ export default function EditPortDialog({
   const { t } = useTranslation();
   const port = ports.find((p) => p.name === portName);
   const [portNumber, setPortNumber] = useState<string>(port?.port?.toString() ?? '8000');
+  const [launchPath, setLaunchPath] = useState<string>(port?.launchPath ?? '');
 
   useEffect(() => {
     setPortNumber(port?.port?.toString() ?? '8000');
-  }, [port?.port]);
+    setLaunchPath(port?.launchPath ?? '');
+  }, [port?.port, port?.launchPath]);
+
+  const basePath = `/share/${appName}/${portName}`;
+  const trimmedLaunchPath = launchPath.trim();
+  const launchPathError =
+    trimmedLaunchPath !== '' && !['/', '?', '#'].includes(trimmedLaunchPath[0])
+      ? t("Launch path must start with '/', '?' or '#'.")
+      : undefined;
 
   const onSave = async () => {
+    if (launchPathError) {
+      return;
+    }
     const result = await patchAsync({
       ports: ports.map((p) => {
         if (p.name === portName) {
           return {
             ...p,
-            port: parseInt(portNumber)
+            port: parseInt(portNumber),
+            launchPath: trimmedLaunchPath
           };
         }
         return p;
@@ -60,7 +74,7 @@ export default function EditPortDialog({
       <AlertDialogContent className="lg:min-w-150 min-w-full">
         <AlertDialogHeader className="mb-4">
           <AlertDialogTitle>{t('Edit port')}</AlertDialogTitle>
-          <AlertDialogDescription>{t('Update the port number for the application')}</AlertDialogDescription>
+          <AlertDialogDescription>{t('Update the port number and launch path for the application')}</AlertDialogDescription>
         </AlertDialogHeader>
         {error && (
           <Alert className="mb-4" variant="destructive">
@@ -72,6 +86,31 @@ export default function EditPortDialog({
         {port && (
           <FieldSet className="w-full">
             <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="launch-path">{t('Launch path')}</FieldLabel>
+                <InputGroup>
+                  <InputGroupAddon className="max-w-40">
+                    <InputGroupText>
+                      <span className="truncate">{basePath}</span>
+                    </InputGroupText>
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    id="launch-path"
+                    placeholder="/a/b/c?q=v"
+                    value={launchPath}
+                    onChange={(e) => setLaunchPath(e.target.value)}
+                    aria-invalid={!!launchPathError}
+                  />
+                </InputGroup>
+                {launchPathError ? (
+                  <FieldError>{launchPathError}</FieldError>
+                ) : (
+                  <FieldDescription>
+                    {t('Optional path appended when launching the application. Leave empty to open')}{' '}
+                    <code>{basePath}/</code>.
+                  </FieldDescription>
+                )}
+              </Field>
               <Field>
                 <FieldLabel htmlFor="port">{t('Port Number')}</FieldLabel>
                 <Input
@@ -97,7 +136,7 @@ export default function EditPortDialog({
             {t('Cancel')}
           </Button>
           <Button
-            disabled={isFetching}
+            disabled={isFetching || !!launchPathError}
             onClick={(e) => {
               onSave();
               e.stopPropagation();
