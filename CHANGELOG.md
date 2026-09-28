@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/ChurroStack/churrostack/compare/v1.9.1...v1.10.0) (2026-09-28)
+
+
+### Features
+
+* **ports:** add a configurable launch path for port buttons ([#56](https://github.com/ChurroStack/churrostack/issues/56)) ([432a486](https://github.com/ChurroStack/churrostack/commit/432a48644923870851d3565ce95b199ea4d999b0))
+
 ## [1.9.1](https://github.com/ChurroStack/churrostack/compare/v1.9.0...v1.9.1) (2026-09-22)
 
 
