@@ -232,11 +232,13 @@ const Application = () => {
                     size="sm"
                     variant="secondary"
                     onClick={() => {
-                      window.open(
-                        port.uri && port.uri !== '' ? port.uri : `/share/${app.name}/${port.name}/`,
-                        '_blank',
-                        'noopener,noreferrer'
-                      );
+                      const base = `/share/${app.name}/${port.name}`;
+                      const url = port.launchPath
+                        ? base + port.launchPath
+                        : port.uri && port.uri !== ''
+                          ? port.uri
+                          : `${base}/`;
+                      window.open(url, '_blank', 'noopener,noreferrer');
                     }}>
                     {renderIcon(port.icon)} {port.title ?? port.name} <ExternalLink className="size-3" />
                   </Button>

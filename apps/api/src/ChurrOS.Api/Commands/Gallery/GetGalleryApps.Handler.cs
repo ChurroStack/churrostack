@@ -77,7 +77,11 @@ namespace ChurrOS.Api.Commands.Gallery
                     description = desc.GetString() ?? string.Empty;
                 }
                 var port = o.Ports?.FirstOrDefault(o => o.Protocol == Models.Dtos.Template.Definition.ProtocolType.Web && o.Sharing == Models.Dtos.Share.SharingMode.Members);
-                string? path = port is null ? null : port.Uri ?? $"share/{o.Name}/{port.Name}";
+                string? path = port is null
+                    ? null
+                    : !string.IsNullOrEmpty(port.LaunchPath)
+                        ? $"share/{o.Name}/{port.Name}{port.LaunchPath}"
+                        : port.Uri ?? $"share/{o.Name}/{port.Name}/";
                 return new GalleryAppSummary(o.Template?.Icon, o.Name, o.Template?.Title, description, path, o.Tags);
             }), count);
         }

@@ -57,6 +57,7 @@ export interface PortDefinition {
   sharing?: 'none' | 'members';
   authentication?: 'anonymous' | 'jwt' | 'jwt_dcr' | 'oidc';
   members?: MemberSummary[];
+  launchPath?: string;
 }
 
 export interface ApplicationEnvironmentVariable {

@@ -16,7 +16,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { renderIcon } from '@/extensions';
 import { useUpdateApplication, type ApplicationItem, type PortDefinition } from '@/hooks/data/applications';
 import { standardSchemaResolver } from '@hookform/resolvers/standard-schema';
-import { AlertCircle, CircleSlash2, GlobeLock, Save, ShieldOff, ShieldUser } from 'lucide-react';
+import { AlertCircle, CircleSlash2, GlobeLock, Save, ShieldOff, ShieldUser, SquarePen } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
@@ -32,7 +32,8 @@ const portsSchema = z.object({
   port: z.number().min(1).max(65535),
   sharing: z.enum(['none', 'members']).default('none'),
   authentication: z.enum(['anonymous', 'jwt', 'jwt_dcr', 'oidc']).default('oidc'),
-  members: z.array(MemberSchema).optional()
+  members: z.array(MemberSchema).optional(),
+  launchPath: z.string().optional()
 });
 
 const formSchema = z.object({
@@ -46,6 +47,7 @@ const PortTitle = ({ appName, ports, portName }: { appName: string; ports: PortD
     <>
       <ItemTitle onClick={() => setShowPortDialog(true)} className="cursor-pointer">
         {port?.title ?? port?.name}
+        <SquarePen className="size-3.5 text-muted-foreground" />
       </ItemTitle>
       <EditPortDialog
         showDialog={showPortDialog}
@@ -82,7 +84,8 @@ const PortsPanel = ({ application }: { application: ApplicationItem }) => {
         port: port?.port,
         authentication: port?.authentication ?? 'oidc',
         sharing: port?.sharing ?? 'none',
-        members: port?.members
+        members: port?.members,
+        launchPath: port?.launchPath
       })) ?? ['']
     });
   }, [application]);
@@ -136,7 +139,8 @@ const PortsPanel = ({ application }: { application: ApplicationItem }) => {
                       sharing: port.sharing,
                       authentication: port.authentication,
                       members: port.members,
-                      icon: port.icon
+                      icon: port.icon,
+                      launchPath: port.launchPath
                     }) as PortDefinition
                 )}
                 portName={port.name}
