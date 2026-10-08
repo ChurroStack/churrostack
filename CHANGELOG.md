@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/ChurroStack/churrostack/compare/v1.10.0...v1.11.0) (2026-10-08)
+
+
+### Features
+
+* **resources:** overcommit env CPU/memory by charging requests ([#60](https://github.com/ChurroStack/churrostack/issues/60)) ([eadc1cc](https://github.com/ChurroStack/churrostack/commit/eadc1cc3ba14541ac0aa46b09b4b6e73986c8f9a))
+
 ## [1.10.0](https://github.com/ChurroStack/churrostack/compare/v1.9.1...v1.10.0) (2026-09-28)
 
 
