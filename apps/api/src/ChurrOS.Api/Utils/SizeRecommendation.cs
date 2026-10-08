@@ -164,9 +164,15 @@ namespace ChurrOS.Api.Utils
         }
 
         /// <summary>
-        /// Finds the catalog entry an app's size corresponds to: prefer an exact
-        /// <see cref="SizeRequestItem.Hint"/> name match, else match by the (cpu, memory, gpu,
-        /// storage) limit tuple. Returns null when nothing matches.
+        /// Finds the catalog entry an app's size corresponds to, resolving it **exactly** the way
+        /// the runner does when it reserves the pod (<c>CreateDeployment.Handler</c>): an exact
+        /// case-insensitive <see cref="SizeRequestItem.Hint"/> name match first, then a raw-string
+        /// match of the <em>limit</em> tuple (a blank dimension on the request is a wildcard),
+        /// compared with <see cref="StringComparison.InvariantCultureIgnoreCase"/>. Using the same
+        /// string semantics as the runner — rather than parsing to numbers — guarantees admission
+        /// charges the request of the same entry the cluster reserves, so a crafted size whose
+        /// strings parse-equal to a cheaper preset cannot under-charge the quota. Returns null when
+        /// nothing matches (the runner would reject such a deploy).
         /// </summary>
         private static EnvironmentSizeDefinition? FindSizeDefinition(EnvironmentSizeDefinition[]? sizes, SizeRequestItem size)
         {
@@ -175,31 +181,16 @@ namespace ChurrOS.Api.Utils
 
             if (!string.IsNullOrEmpty(size.Hint))
             {
-                // Case-insensitive to mirror the runner's hint resolution
-                // (CreateDeployment.Handler: StringComparison.OrdinalIgnoreCase), so admission
-                // accounting always resolves the same catalog entry the cluster actually reserves.
                 var byHint = sizes.FirstOrDefault(s => string.Equals(s.Name, size.Hint, StringComparison.OrdinalIgnoreCase));
                 if (byHint != null)
                     return byHint;
             }
 
-            var cpu = ParseCpu(size.Cpu);
-            var memory = ParseMemory(size.Memory);
-            var gpu = NormalizeGpu(size.Gpu);
-            var storage = ParseMemory(size.Storage);
-
-            foreach (var def in sizes)
-            {
-                var quota = def.Limits ?? def.Requests;
-                if (quota == null)
-                    continue;
-                if (ParseCpu(quota.Cpu) != cpu) continue;
-                if (ParseMemory(quota.Memory) != memory) continue;
-                if (NormalizeGpu(quota.Gpu) != gpu) continue;
-                if (storage != null && ParseMemory(quota.Storage) != storage) continue;
-                return def;
-            }
-            return null;
+            return sizes.FirstOrDefault(s =>
+                (string.IsNullOrWhiteSpace(size.Cpu) || size.Cpu.Equals(s.Limits?.Cpu, StringComparison.InvariantCultureIgnoreCase)) &&
+                (string.IsNullOrWhiteSpace(size.Memory) || size.Memory.Equals(s.Limits?.Memory, StringComparison.InvariantCultureIgnoreCase)) &&
+                (string.IsNullOrWhiteSpace(size.Storage) || size.Storage.Equals(s.Limits?.Storage, StringComparison.InvariantCultureIgnoreCase)) &&
+                (string.IsNullOrWhiteSpace(size.Gpu) || size.Gpu.Equals(s.Limits?.Gpu, StringComparison.InvariantCultureIgnoreCase)));
         }
 
         /// <summary>True when two sizes describe the same amount of resources.</summary>
