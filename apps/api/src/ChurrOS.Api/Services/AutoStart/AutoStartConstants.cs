@@ -14,6 +14,15 @@ namespace ChurrOS.Api.Services.AutoStart
 
         public static readonly TimeSpan CooldownTtl = TimeSpan.FromSeconds(60);
         public static readonly TimeSpan RunningTtl = TimeSpan.FromHours(24);
+
+        // Backoff window after an auto-start fails. While this key exists, held and new requests
+        // short-circuit to a fast 503 instead of polling to the HoldTimeout, and no new leader is
+        // claimed — so the env lock is not hammered. After it expires the next request retries.
+        // Capacity failures (env at capacity / busy) retry quickly, because capacity can free in
+        // seconds when another app auto-stops; any other failure (e.g. runner unreachable) backs
+        // off longer so a persistently-broken start does not become a retry storm.
+        public static readonly TimeSpan StartFailedTtl = TimeSpan.FromSeconds(10);
+        public static readonly TimeSpan StartFailedHardTtl = TimeSpan.FromSeconds(60);
         public static readonly TimeSpan LastActivityTtl = TimeSpan.FromHours(48);
         public static readonly TimeSpan RouteCacheTtl = TimeSpan.FromSeconds(60);
         public static readonly TimeSpan LastActivityThrottle = TimeSpan.FromSeconds(30);
@@ -28,5 +37,6 @@ namespace ChurrOS.Api.Services.AutoStart
         public static string CooldownKey(long appId) => $"app:{appId}:autostart_cooldown";
         public static string RunningKey(long appId) => $"app:{appId}:running";
         public static string LastActivityKey(long appId) => $"app:{appId}:last_activity";
+        public static string StartFailedKey(long appId) => $"app:{appId}:start_failed";
     }
 }

@@ -79,7 +79,7 @@ namespace ChurrOS.Api.Commands.Applications
             // starts can't both pass the budget check before either's ExecutionStatus updates.
             var lockKey = $"churros_tenant:{_tenantResolver.AccountId}:env:{app.EnvironmentId}:resource_lock";
             await using var handle = await _lockService.AcquireAsync(lockKey, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(5), cancellationToken)
-                ?? throw new InvalidOperationException("Environment is busy, please retry.");
+                ?? throw new EnvironmentCapacityException("Environment is busy, please retry.");
 
             await _mediator.Send(new EnsureEnvironmentRunningQuota(app.EnvironmentId, app.Id, app.Size, EnsureRunningQuotaMode.Start), cancellationToken);
 
@@ -99,6 +99,11 @@ namespace ChurrOS.Api.Commands.Applications
             }
 
             await _autoStartCache.InvalidateRouteAsync(app.Name);
+
+            // A start was dispatched successfully — supersede any prior auto-start failure backoff
+            // so share requests don't keep getting a stale "at capacity" 503 while this start
+            // actually proceeds.
+            await _autoStartCache.ClearStartFailedAsync(app.Id);
 
             // A manual start (i.e. an authenticated user clicked Start) overrides any
             // previous auto-stop cooldown, otherwise share requests in the next 60 s

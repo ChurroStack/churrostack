@@ -69,9 +69,12 @@ namespace ChurrOS.Api.Commands.Environment
                     result.Storage.Allocated += storage;
             }
 
-            // Requested: sum of Size across Running/Starting deployments. Mirrors
-            // EnsureEnvironmentRunningQuota — per-deployment, so a Workspace app with N active
-            // per-user deployments contributes N × Size (matches what the cluster reserves).
+            // Requested: what the cluster actually reserves across Running/Starting deployments.
+            // CPU/memory are charged by the resource *request* (resolved from the size catalog),
+            // mirroring EnsureEnvironmentRunningQuota; GPU/storage have no request/limit split so
+            // they stay as the configured Size. Per-deployment, so a Workspace app with N active
+            // per-user deployments contributes N × request.
+            var sizes = environment.Definition?.Sizes;
             var runningDeployments = await _context.Set<Domain.ApplicationDeployment>()
                 .AsNoTracking()
                 .Where(d => d.Application!.EnvironmentId == environment.Id
@@ -84,10 +87,11 @@ namespace ChurrOS.Api.Commands.Environment
             {
                 if (d.Size == null)
                     continue;
-                if (!string.IsNullOrWhiteSpace(d.Size.Cpu) && d.Size.Cpu.TryParseCpuToCores(out var cpu))
-                    result.Cpu.Requested += cpu;
-                if (!string.IsNullOrWhiteSpace(d.Size.Memory) && d.Size.Memory.TryParseMemoryToBytes(out var memory))
-                    result.Memory.Requested += memory;
+                var (cpuReq, memReq) = SizeRecommendation.ResolveRequest(sizes, d.Size);
+                if (cpuReq.HasValue)
+                    result.Cpu.Requested += cpuReq.Value;
+                if (memReq.HasValue)
+                    result.Memory.Requested += memReq.Value;
                 if (!string.IsNullOrWhiteSpace(d.Size.Gpu) && d.Size.Gpu.TryParseCpuToCores(out var gpu))
                     result.Gpu.Requested += gpu;
                 if (!string.IsNullOrWhiteSpace(d.Size.Storage) && d.Size.Storage.TryParseMemoryToBytes(out var storage))
@@ -124,13 +128,25 @@ namespace ChurrOS.Api.Commands.Environment
             }
 
             // Quota: env hard ceiling (parsed from the same strings the header already shows).
+            // Ceiling: the effective admission ceiling after overcommit (quota × factor). CPU uses
+            // the CPU factor; memory uses the burst-ceiling factor (the outer bound the Allocated
+            // limit-sum is measured against). GPU/storage are not overcommitted.
             var limits = environment.Definition?.Limits;
+            var overcommit = environment.Definition?.Overcommit;
             if (limits != null)
             {
                 result.Cpu.Quota = TryParseCores(limits.Cpu);
                 result.Memory.Quota = TryParseBytes(limits.Memory);
                 result.Gpu.Quota = TryParseCores(limits.Gpu);
                 result.Storage.Quota = TryParseBytes(limits.Storage);
+
+                // Effective ceilings via the same factor-normalization the admission check uses, so
+                // the bar and enforcement never diverge. Memory's track bound is the burst ceiling
+                // (the limit-sum cap), which is what the gray Allocated bar is measured against.
+                result.Cpu.Ceiling = Scale(result.Cpu.Quota, EnvironmentOvercommitDefinition.Normalize(overcommit?.Cpu, 1.0));
+                result.Memory.Ceiling = Scale(result.Memory.Quota, EnvironmentOvercommitDefinition.Normalize(overcommit?.MemoryBurst, 1.0));
+                result.Gpu.Ceiling = result.Gpu.Quota;
+                result.Storage.Ceiling = result.Storage.Quota;
             }
 
             return result;
@@ -141,5 +157,8 @@ namespace ChurrOS.Api.Commands.Environment
 
         private static double? TryParseBytes(string? value)
             => !string.IsNullOrWhiteSpace(value) && value.TryParseMemoryToBytes(out var bytes) ? bytes : null;
+
+        private static double? Scale(double? quota, double factor)
+            => quota.HasValue ? quota.Value * factor : null;
     }
 }

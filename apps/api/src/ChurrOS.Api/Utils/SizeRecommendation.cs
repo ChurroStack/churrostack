@@ -130,6 +130,69 @@ namespace ChurrOS.Api.Utils
             return null;
         }
 
+        /// <summary>
+        /// Resolves the Kubernetes resource <em>request</em> (CPU cores, memory bytes) that the
+        /// cluster actually reserves for an app's size. <see cref="SizeRequestItem"/> carries the
+        /// preset's <em>limit</em> values, so we recover the smaller request by matching the size
+        /// against the environment catalog and reading its <see cref="EnvironmentSizeDefinition.Requests"/>
+        /// block. Falls back to the size's own (limit) value when no catalog entry matches or the
+        /// entry declares no explicit request — never under-charging an unknown size.
+        /// </summary>
+        public static (double? CpuCores, double? MemoryBytes) ResolveRequest(EnvironmentSizeDefinition[]? sizes, SizeRequestItem? size)
+        {
+            var r = ResolveRequestDetailed(sizes, size);
+            return (r.CpuCores, r.MemoryBytes);
+        }
+
+        /// <summary>
+        /// Like <see cref="ResolveRequest"/>, but also reports whether the request came from a
+        /// catalog entry (<c>FromCatalog = true</c>) or fell back to the size's own limit values
+        /// (<c>false</c> — the catalog-drift / missing-request signal callers may want to log).
+        /// </summary>
+        public static (double? CpuCores, double? MemoryBytes, bool FromCatalog) ResolveRequestDetailed(EnvironmentSizeDefinition[]? sizes, SizeRequestItem? size)
+        {
+            if (size == null)
+                return (null, null, true);
+
+            var requests = FindSizeDefinition(sizes, size)?.Requests;
+            var cpuFromRequest = ParseCpu(requests?.Cpu);
+            var memoryFromRequest = ParseMemory(requests?.Memory);
+            var cpu = cpuFromRequest ?? ParseCpu(size.Cpu);
+            var memory = memoryFromRequest ?? ParseMemory(size.Memory);
+            var fromCatalog = cpuFromRequest.HasValue || memoryFromRequest.HasValue;
+            return (cpu, memory, fromCatalog);
+        }
+
+        /// <summary>
+        /// Finds the catalog entry an app's size corresponds to, resolving it **exactly** the way
+        /// the runner does when it reserves the pod (<c>CreateDeployment.Handler</c>): an exact
+        /// case-insensitive <see cref="SizeRequestItem.Hint"/> name match first, then a raw-string
+        /// match of the <em>limit</em> tuple (a blank dimension on the request is a wildcard),
+        /// compared with <see cref="StringComparison.InvariantCultureIgnoreCase"/>. Using the same
+        /// string semantics as the runner — rather than parsing to numbers — guarantees admission
+        /// charges the request of the same entry the cluster reserves, so a crafted size whose
+        /// strings parse-equal to a cheaper preset cannot under-charge the quota. Returns null when
+        /// nothing matches (the runner would reject such a deploy).
+        /// </summary>
+        private static EnvironmentSizeDefinition? FindSizeDefinition(EnvironmentSizeDefinition[]? sizes, SizeRequestItem size)
+        {
+            if (sizes == null || sizes.Length == 0)
+                return null;
+
+            if (!string.IsNullOrEmpty(size.Hint))
+            {
+                var byHint = sizes.FirstOrDefault(s => string.Equals(s.Name, size.Hint, StringComparison.OrdinalIgnoreCase));
+                if (byHint != null)
+                    return byHint;
+            }
+
+            return sizes.FirstOrDefault(s =>
+                (string.IsNullOrWhiteSpace(size.Cpu) || size.Cpu.Equals(s.Limits?.Cpu, StringComparison.InvariantCultureIgnoreCase)) &&
+                (string.IsNullOrWhiteSpace(size.Memory) || size.Memory.Equals(s.Limits?.Memory, StringComparison.InvariantCultureIgnoreCase)) &&
+                (string.IsNullOrWhiteSpace(size.Storage) || size.Storage.Equals(s.Limits?.Storage, StringComparison.InvariantCultureIgnoreCase)) &&
+                (string.IsNullOrWhiteSpace(size.Gpu) || size.Gpu.Equals(s.Limits?.Gpu, StringComparison.InvariantCultureIgnoreCase)));
+        }
+
         /// <summary>True when two sizes describe the same amount of resources.</summary>
         public static bool SameSize(SizeRequestItem? a, SizeRequestItem? b)
         {

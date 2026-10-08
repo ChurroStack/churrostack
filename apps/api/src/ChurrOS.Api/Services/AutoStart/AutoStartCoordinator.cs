@@ -1,10 +1,11 @@
 using ChurrOS.Api.Commands.Applications;
+using ChurrOS.Api.Utils.Exceptions;
 using DispatchR;
 using Microsoft.Extensions.Logging;
 
 namespace ChurrOS.Api.Services.AutoStart
 {
-    public enum HoldOutcome { Running, Cooldown, Timeout, Error }
+    public enum HoldOutcome { Running, Cooldown, Timeout, Error, Rejected }
 
     public sealed class AutoStartCoordinator
     {
@@ -37,6 +38,23 @@ namespace ChurrOS.Api.Services.AutoStart
                 return HoldOutcome.Cooldown;
             }
 
+            // If the app is already running (e.g. a manual start just completed), forward
+            // immediately — this also avoids rejecting on a now-stale start_failed key.
+            if (await _autoStartCache.IsRunningAsync(appId))
+            {
+                return HoldOutcome.Running;
+            }
+
+            // Backoff guard: a recent start attempt failed (e.g. quota exceeded). Do not claim
+            // leadership or poll — short-circuit to a fast rejection while the window lives. A
+            // later manual/system start clears this key (see StartApplicationHandler), so an
+            // in-progress legitimate start lifts the backoff rather than being rejected.
+            if (await _autoStartCache.GetStartFailedAsync(appId) is not null)
+            {
+                _logger.LogInformation("[AutoStart] rejected (recent failure) app={App} id={Id}", appName, appId);
+                return HoldOutcome.Rejected;
+            }
+
             var isLeader = await _autoStartCache.TryClaimStartAsync(appId);
             if (isLeader)
             {
@@ -56,6 +74,12 @@ namespace ChurrOS.Api.Services.AutoStart
                 {
                     _logger.LogDebug("[AutoStart] ready app={App} id={Id}", appName, appId);
                     return HoldOutcome.Running;
+                }
+                // The leader may have failed admission while we were holding — stop fast.
+                if (await _autoStartCache.GetStartFailedAsync(appId) is not null)
+                {
+                    _logger.LogInformation("[AutoStart] rejected (start failed) app={App} id={Id}", appName, appId);
+                    return HoldOutcome.Rejected;
                 }
                 try
                 {
@@ -86,7 +110,26 @@ namespace ChurrOS.Api.Services.AutoStart
             }
             catch (Exception ex)
             {
+                // Surface the failure to holders/new requests as a fast rejection instead of letting
+                // them poll to the 300s HoldTimeout. Only EnvironmentCapacityException carries a
+                // vetted, user-safe reason (quota exceeded / env busy); every other exception —
+                // including the many framework types that derive from InvalidOperationException —
+                // gets a generic message so internal text never reaches the response body. Set the
+                // backoff key BEFORE releasing the inflight claim so no racing caller claims
+                // leadership in between.
                 _logger.LogError(ex, "[AutoStart] start failed app={App} id={Id}", appName, appId);
+                var isCapacity = ex is EnvironmentCapacityException;
+                var reason = isCapacity ? ex.Message : "Application failed to start.";
+                var ttl = isCapacity ? AutoStartConstants.StartFailedTtl : AutoStartConstants.StartFailedHardTtl;
+
+                // Record the backoff first, then release the inflight claim — independently, so a
+                // transient Redis error on one still lets the other run. Clearing inflight is the
+                // one that must happen: otherwise the claim lingers for its full TTL and blocks
+                // every retry while holders poll to the 300 s timeout.
+                try { await _autoStartCache.SetStartFailedAsync(appId, reason, ttl); }
+                catch (Exception e) { _logger.LogWarning(e, "[AutoStart] start_failed write failed app={App} id={Id}", appName, appId); }
+                try { await _autoStartCache.ClearInflightAsync(appId); }
+                catch (Exception e) { _logger.LogWarning(e, "[AutoStart] inflight clear failed app={App} id={Id}", appName, appId); }
             }
         }
     }

@@ -42,6 +42,12 @@ namespace ChurrunKubernetes.Commands.Environment
                     storage: _configuration["Kubernetes:Limits:Storage"]
                 );
 
+                var overcommit = new OvercommitDefinition(
+                    cpu: ParseFactor(_configuration["Kubernetes:Overcommit:Cpu"]),
+                    memory: ParseFactor(_configuration["Kubernetes:Overcommit:Memory"]),
+                    memoryBurst: ParseFactor(_configuration["Kubernetes:Overcommit:MemoryBurst"])
+                );
+
                 var sizes = new List<SizeDefinition>();
                 var hostPaths = new List<HostPathDefinition>();
 
@@ -92,11 +98,19 @@ namespace ChurrunKubernetes.Commands.Environment
                     translation: null
                 )
                 {
+                    Overcommit = overcommit,
                     HostPaths = hostPaths.ToArray()
                 };
 
                 return result;
             });
         }
+
+        private static double? ParseFactor(string? raw)
+            => !string.IsNullOrWhiteSpace(raw)
+               && double.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value)
+               && value > 0
+                ? value
+                : null;
     }
 }

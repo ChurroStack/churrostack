@@ -1,6 +1,9 @@
 using ChurrOS.Api.Data;
+using ChurrOS.Api.Models.Dtos.Application;
 using ChurrOS.Api.Models.Dtos.Deployment;
+using ChurrOS.Api.Models.Dtos.Environment;
 using ChurrOS.Api.Utils;
+using ChurrOS.Api.Utils.Exceptions;
 using DispatchR.Abstractions.Send;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -9,6 +12,11 @@ namespace ChurrOS.Api.Commands.Environment
 {
     public class EnsureEnvironmentRunningQuotaHandler : IRequestHandler<EnsureEnvironmentRunningQuota, Task>
     {
+        // Neutral default for the memory burst ceiling when the operator configures nothing:
+        // Σ memory limits ≤ quota, i.e. memory behaves exactly as before (no oversubscription).
+        // Operators enable memory overcommit explicitly (e.g. 1.5) via Kubernetes:Overcommit:MemoryBurst.
+        private const double DefaultMemoryBurstFactor = 1.0;
+
         private readonly ChurrosDbContext _context;
         private readonly ILogger<EnsureEnvironmentRunningQuotaHandler> _logger;
 
@@ -27,6 +35,7 @@ namespace ChurrOS.Api.Commands.Environment
                 .FirstOrDefaultAsync(cancellationToken);
 
             var limits = environment?.Definition?.Limits;
+            var sizes = environment?.Definition?.Sizes;
             var cpuLimitSet = !string.IsNullOrWhiteSpace(limits?.Cpu) && limits!.Cpu.TryParseCpuToCores(out _);
             var memoryLimitSet = !string.IsNullOrWhiteSpace(limits?.Memory) && limits!.Memory.TryParseMemoryToBytes(out _);
             if (!cpuLimitSet && !memoryLimitSet)
@@ -35,9 +44,17 @@ namespace ChurrOS.Api.Commands.Environment
                 return;
             }
 
-            // Pull every Running/Starting deployment in this environment so we can sum their
-            // committed Application.Size. Each deployment counts once: a Workspace app with N
-            // active per-user deployments contributes N × Size (matches what the cluster requests).
+            // Overcommit factors (default to neutral/conservative when unset). CPU is throttle-safe
+            // so it may be raised aggressively; memory requests stay schedulable (factor ~1.0) while
+            // a separate burst ceiling bounds the worst-case simultaneous memory burst.
+            var overcommit = environment?.Definition?.Overcommit;
+            var fCpu = EnvironmentOvercommitDefinition.Normalize(overcommit?.Cpu, 1.0);
+            var fMem = EnvironmentOvercommitDefinition.Normalize(overcommit?.Memory, 1.0);
+            var fMemBurst = EnvironmentOvercommitDefinition.Normalize(overcommit?.MemoryBurst, DefaultMemoryBurstFactor);
+
+            // Pull every Running/Starting deployment in this environment. Each deployment counts
+            // once: a Workspace app with N active per-user deployments contributes N × request
+            // (matches what the cluster actually reserves).
             var runningDeployments = await _context.Set<Domain.ApplicationDeployment>()
                 .AsNoTracking()
                 .Where(d => d.Application!.EnvironmentId == request.EnvironmentId
@@ -46,73 +63,101 @@ namespace ChurrOS.Api.Commands.Environment
                 .Select(d => new { d.ApplicationId, d.Application!.Size })
                 .ToListAsync(cancellationToken);
 
-            double usedCpu = 0;
-            double usedMemory = 0;
+            // Running totals accounted by request (cluster reservation); memory also tracks the
+            // sum of limits for the burst ceiling.
+            double sumCpuReq = 0, sumMemReq = 0, sumMemLimit = 0;
+            double candidateCpuReq = 0, candidateMemReq = 0, candidateMemLimit = 0;
             int candidateRunningCount = 0;
             foreach (var d in runningDeployments)
             {
-                if (d.Size is null)
-                    continue;
-                if (cpuLimitSet && !string.IsNullOrWhiteSpace(d.Size.Cpu) && d.Size.Cpu.TryParseCpuToCores(out var cpu))
-                    usedCpu += cpu;
-                if (memoryLimitSet && !string.IsNullOrWhiteSpace(d.Size.Memory) && d.Size.Memory.TryParseMemoryToBytes(out var mem))
-                    usedMemory += mem;
+                var (cpuReq, memReq, memLimit) = ResolveContribution(sizes, d.Size, request.EnvironmentId, d.ApplicationId);
+                sumCpuReq += cpuReq;
+                sumMemReq += memReq;
+                sumMemLimit += memLimit;
                 if (d.ApplicationId == request.ApplicationId)
+                {
+                    candidateCpuReq += cpuReq;
+                    candidateMemReq += memReq;
+                    candidateMemLimit += memLimit;
                     candidateRunningCount++;
+                }
             }
 
-            // Compute the delta this request would add to the running totals.
-            double addCpu = 0;
-            double addMemory = 0;
-            if (cpuLimitSet && !string.IsNullOrWhiteSpace(request.NewSize?.Cpu) && request.NewSize.Cpu.TryParseCpuToCores(out var newCpu))
+            // Delta this request adds. Start adds one instance; Update re-prices every running
+            // instance of the candidate (newValue × count − currentCandidateSum).
+            var (newCpuReq, newMemReq, newMemLimit) = ResolveContribution(sizes, request.NewSize, request.EnvironmentId, request.ApplicationId);
+            double addCpuReq, addMemReq, addMemLimit;
+            if (request.Mode == EnsureRunningQuotaMode.Update)
             {
-                addCpu = request.Mode == EnsureRunningQuotaMode.Update
-                    ? newCpu * candidateRunningCount - SumCandidateCpu(runningDeployments.Where(o => o.ApplicationId == request.ApplicationId).Select(o => o.Size))
-                    : newCpu;
+                addCpuReq = newCpuReq * candidateRunningCount - candidateCpuReq;
+                addMemReq = newMemReq * candidateRunningCount - candidateMemReq;
+                addMemLimit = newMemLimit * candidateRunningCount - candidateMemLimit;
             }
-            if (memoryLimitSet && !string.IsNullOrWhiteSpace(request.NewSize?.Memory) && request.NewSize.Memory.TryParseMemoryToBytes(out var newMem))
+            else
             {
-                addMemory = request.Mode == EnsureRunningQuotaMode.Update
-                    ? newMem * candidateRunningCount - SumCandidateMemory(runningDeployments.Where(o => o.ApplicationId == request.ApplicationId).Select(o => o.Size))
-                    : newMem;
+                addCpuReq = newCpuReq;
+                addMemReq = newMemReq;
+                addMemLimit = newMemLimit;
             }
 
             if (cpuLimitSet && limits!.Cpu!.TryParseCpuToCores(out var cpuLimit))
             {
-                _logger.LogDebug("[EnsureRunningQuota] envId={EnvId} appId={AppId} mode={Mode} cpuUsed={Used} cpuAdd={Add} cpuLimit={Limit}",
-                    request.EnvironmentId, request.ApplicationId, request.Mode, usedCpu, addCpu, cpuLimit);
-                if (usedCpu + addCpu > cpuLimit)
-                    throw new InvalidOperationException("The environment CPU quota has been exceeded.");
+                var cpuCeiling = cpuLimit * fCpu;
+                _logger.LogDebug("[EnsureRunningQuota] envId={EnvId} appId={AppId} mode={Mode} cpuReq={Used} cpuAdd={Add} cpuCeiling={Ceiling} (quota={Quota} ×{Factor})",
+                    request.EnvironmentId, request.ApplicationId, request.Mode, sumCpuReq, addCpuReq, cpuCeiling, cpuLimit, fCpu);
+                if (sumCpuReq + addCpuReq > cpuCeiling)
+                {
+                    _logger.LogInformation("[EnsureRunningQuota] CPU rejected envId={EnvId} appId={AppId} mode={Mode} reqSum={Used} add={Add} ceiling={Ceiling}",
+                        request.EnvironmentId, request.ApplicationId, request.Mode, sumCpuReq, addCpuReq, cpuCeiling);
+                    throw new EnvironmentCapacityException("The environment CPU quota has been exceeded.");
+                }
             }
+
             if (memoryLimitSet && limits!.Memory!.TryParseMemoryToBytes(out var memoryLimit))
             {
-                _logger.LogDebug("[EnsureRunningQuota] envId={EnvId} appId={AppId} mode={Mode} memUsed={Used} memAdd={Add} memLimit={Limit}",
-                    request.EnvironmentId, request.ApplicationId, request.Mode, usedMemory, addMemory, memoryLimit);
-                if (usedMemory + addMemory > memoryLimit)
-                    throw new InvalidOperationException("The environment Memory quota has been exceeded.");
+                var memRequestCeiling = memoryLimit * fMem;
+                var memBurstCeiling = memoryLimit * fMemBurst;
+                _logger.LogDebug("[EnsureRunningQuota] envId={EnvId} appId={AppId} mode={Mode} memReq={UsedReq} memReqAdd={AddReq} memReqCeiling={ReqCeiling} memLimit={UsedLim} memLimitAdd={AddLim} memBurstCeiling={BurstCeiling}",
+                    request.EnvironmentId, request.ApplicationId, request.Mode, sumMemReq, addMemReq, memRequestCeiling, sumMemLimit, addMemLimit, memBurstCeiling);
+                if (sumMemReq + addMemReq > memRequestCeiling)
+                {
+                    _logger.LogInformation("[EnsureRunningQuota] Memory (request) rejected envId={EnvId} appId={AppId} mode={Mode} reqSum={Used} add={Add} ceiling={Ceiling}",
+                        request.EnvironmentId, request.ApplicationId, request.Mode, sumMemReq, addMemReq, memRequestCeiling);
+                    throw new EnvironmentCapacityException("The environment Memory quota has been exceeded.");
+                }
+                if (sumMemLimit + addMemLimit > memBurstCeiling)
+                {
+                    _logger.LogInformation("[EnsureRunningQuota] Memory (burst) rejected envId={EnvId} appId={AppId} mode={Mode} limitSum={Used} add={Add} burstCeiling={Ceiling}",
+                        request.EnvironmentId, request.ApplicationId, request.Mode, sumMemLimit, addMemLimit, memBurstCeiling);
+                    throw new EnvironmentCapacityException("The environment Memory quota has been exceeded.");
+                }
             }
         }
 
-        private static double SumCandidateCpu(IEnumerable<Models.Dtos.Application.SizeRequestItem?> sizes)
+        /// <summary>
+        /// Returns the (cpuRequestCores, memoryRequestBytes, memoryLimitBytes) a size contributes.
+        /// Requests are what the cluster reserves (used for admission + scheduling fit); the memory
+        /// limit feeds the burst ceiling. <see cref="SizeRequestItem.Memory"/> already holds the
+        /// preset limit, so it is the memory limit directly.
+        /// </summary>
+        private (double CpuRequest, double MemoryRequest, double MemoryLimit) ResolveContribution(
+            EnvironmentSizeDefinition[]? sizes, SizeRequestItem? size, long environmentId, long applicationId)
         {
-            double total = 0;
-            foreach (var size in sizes)
-            {
-                if (!string.IsNullOrWhiteSpace(size?.Cpu) && size!.Cpu.TryParseCpuToCores(out var cpu))
-                    total += cpu;
-            }
-            return total;
-        }
+            if (size is null)
+                return (0, 0, 0);
 
-        private static double SumCandidateMemory(IEnumerable<Models.Dtos.Application.SizeRequestItem?> sizes)
-        {
-            double total = 0;
-            foreach (var size in sizes)
+            var (cpuReq, memReq, fromCatalog) = SizeRecommendation.ResolveRequestDetailed(sizes, size);
+            if (!fromCatalog)
             {
-                if (!string.IsNullOrWhiteSpace(size?.Memory) && size!.Memory.TryParseMemoryToBytes(out var mem))
-                    total += mem;
+                // No catalog request matched (deleted/renamed size, or a preset with no explicit
+                // request) — we charge the limit instead. This is the catalog-drift signal.
+                _logger.LogDebug("[EnsureRunningQuota] request fallback-to-limit envId={EnvId} appId={AppId} hint={Hint} cpu={Cpu} mem={Mem}",
+                    environmentId, applicationId, size.Hint, size.Cpu, size.Memory);
             }
-            return total;
+            double memLimit = !string.IsNullOrWhiteSpace(size.Memory) && size.Memory.TryParseMemoryToBytes(out var ml)
+                ? ml
+                : memReq ?? 0;
+            return (cpuReq ?? 0, memReq ?? 0, memLimit);
         }
     }
 }

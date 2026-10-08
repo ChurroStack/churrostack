@@ -11,6 +11,7 @@ Two opt-in behaviours per application that let the platform spin up an app on de
 | **Idle** | No HTTP request through the share proxy AND CPU below the activity threshold (`AutoStartConstants.CpuActivityCores`, 0.05 cores) for the full idle window. Either signal refreshes a single Redis key (`app:{id}:last_activity`), so "idle = key older than threshold". |
 | **Cooldown** | A 60-second window after Auto-Stop fires. Requests during the cooldown receive `503` instead of triggering a new Auto-Start. Manual `Start` ignores the cooldown. |
 | **Single-flight** | When many requests arrive concurrently for a stopped app, exactly one wins the Redis `SETNX` on `app:{id}:autostart_inflight` and triggers `StartApplication`; the rest poll the running flag. |
+| **Fail-fast** | If the triggered start fails **admission** (environment at capacity / busy — `EnvironmentCapacityException`), the leader records `app:{id}:start_failed` (reason, 10 s) and clears the inflight claim. `HoldUntilRunningAsync` returns `HoldOutcome.Rejected` → the proxy writes a fast `503` with the reason instead of polling to the `504` hold timeout. While `start_failed` lives, new requests short-circuit to the same `503` and do **not** claim leadership (backoff), so the env lock is not hammered; the first request after it expires retries the start. |
 
 ## Where the settings live
 
@@ -35,7 +36,8 @@ Every request through `/share/*` must avoid Postgres on the steady state. Keys:
 | `app:{name}:share_route` | YARP transform (on miss, hydrate from DB) | YARP transform | 60 s | `Start`, `Stop`, `Update` handlers; `ScrapeDeploymentStateJob` on `ExecutionStatus` change; `ProxyConfigurationProvider.Add/RemoveApplication` |
 | `app:{id}:running` | `ScrapeDeploymentStateJob` when status flips to `Running` | `AutoStartCoordinator` (hold-path pollers) | 24 h | `DEL` on transition away from Running; `DEL` by `StopApplication` |
 | `app:{id}:last_activity` | YARP transform (throttled to ≤1 write / 30 s / replica) + `ScrapeMetricsJob` when CPU ≥ 0.05 cores | `AutoStopEvaluatorJob` cron | 48 h | Overwrite-on-activity |
-| `app:{id}:autostart_inflight` | `AutoStartCoordinator` (`SET NX EX 180`) | Coordinator (single-flight gate) | 180 s | Auto-expires only |
+| `app:{id}:autostart_inflight` | `AutoStartCoordinator` (`SET NX`) | Coordinator (single-flight gate) | 420 s | Auto-expires; **also `DEL`'d by the leader on start failure** so the backoff window can retry |
+| `app:{id}:start_failed` | `AutoStartCoordinator` leader on admission failure | Coordinator (pre-claim + each poll) and the YARP transform (for the `503` reason) | 10 s | Auto-expires — acts as the retry backoff window |
 | `app:{id}:autostart_cooldown` | `StopApplication` when `SetCooldown = true` AND `BypassAcl = true` | Coordinator | 60 s | Auto-expires; cleared by a manual `Start` (`!BypassAcl`) so an explicit user override is honoured immediately |
 | `app:{id}:autostop_inflight` | `AutoStopEvaluatorJob` before dispatching Stop (`SET NX EX 300`) | `AutoStopEvaluatorJob` (skip if claimed) | 5 min | Auto-expires; prevents duplicate Stop on the next 5-min cron tick while `ScrapeDeploymentStateJob` is still observing the runner-side transition |
 
@@ -43,7 +45,7 @@ The constants live in `apps/api/src/ChurrOS.Api/Services/AutoStart/AutoStartCons
 
 ## Quota and ACL
 
-- Auto-Start delegates to `StartApplication` with `BypassAcl = true`. The handler still calls `EnsureEnvironmentRunningQuota` (under the same per-env Redis lock as a manual start), so Auto-Start cannot exceed the environment's CPU/memory quota — see [`environment-resources.md`](environment-resources.md).
+- Auto-Start delegates to `StartApplication` with `BypassAcl = true`. The handler still calls `EnsureEnvironmentRunningQuota` (under the same per-env Redis lock as a manual start), so Auto-Start cannot exceed the environment's overcommit-adjusted CPU/memory ceiling — see [`environment-resources.md`](environment-resources.md). When that check rejects the start the proxy fails fast with a `503` (see **Fail-fast** above), not a slow `504`.
 - `BypassAcl` skips the ACL check (the request came from the proxy, not an authenticated user). Manual starts continue to enforce ACLs.
 
 ## Failure modes

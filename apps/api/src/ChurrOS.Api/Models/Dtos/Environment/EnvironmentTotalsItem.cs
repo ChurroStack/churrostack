@@ -29,5 +29,12 @@ namespace ChurrOS.Api.Models.Dtos.Environment
 
         /// <summary>Hard ceiling from environment Definition.Limits; null when no quota configured.</summary>
         public double? Quota { get; set; }
+
+        /// <summary>
+        /// Effective admission ceiling after overcommit (Quota × factor). CPU uses the CPU factor,
+        /// memory the burst-ceiling factor; GPU/storage equal Quota. Null when no quota configured.
+        /// Equals Quota when no overcommit is configured.
+        /// </summary>
+        public double? Ceiling { get; set; }
     }
 }
