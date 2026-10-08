@@ -265,6 +265,11 @@ export interface ResourceTotal {
   requested: number;
   allocated: number;
   quota?: number;
+  /**
+   * Effective admission ceiling after overcommit (quota × factor). Equals quota when no
+   * overcommit is configured; exceeds it when the operator allows oversubscription.
+   */
+  ceiling?: number;
 }
 
 export interface EnvironmentTotals {

@@ -27,6 +27,11 @@
         public QuotaDefinition? Limits { get; set; }
 
         /// <summary>
+        /// Per-environment resource overcommit factors (optional).
+        /// </summary>
+        public OvercommitDefinition? Overcommit { get; set; }
+
+        /// <summary>
         /// Environment available sizes
         /// </summary>
         public SizeDefinition[]? Sizes { get; set; }

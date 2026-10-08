@@ -109,6 +109,36 @@ namespace ChurrOS.Api.Services.AutoStart
                 When.NotExists);
         }
 
+        public Task ClearInflightAsync(long appId)
+        {
+            return _redis.GetDatabase().KeyDeleteAsync(AutoStartConstants.InflightKey(appId));
+        }
+
+        /// <summary>
+        /// Records that an auto-start attempt failed, with a backoff TTL. Readers short-circuit to
+        /// a fast 503 carrying the reason while this key lives.
+        /// </summary>
+        public Task SetStartFailedAsync(long appId, string reason, TimeSpan ttl)
+        {
+            return _redis.GetDatabase().StringSetAsync(
+                AutoStartConstants.StartFailedKey(appId),
+                string.IsNullOrWhiteSpace(reason) ? "Application failed to start." : reason,
+                ttl);
+        }
+
+        /// <summary>Returns the recorded start-failure reason, or null when outside the backoff window.</summary>
+        public async Task<string?> GetStartFailedAsync(long appId)
+        {
+            var raw = await _redis.GetDatabase().StringGetAsync(AutoStartConstants.StartFailedKey(appId));
+            return raw.IsNullOrEmpty ? null : raw.ToString();
+        }
+
+        /// <summary>Lifts the start-failure backoff — a later (manual or system) start supersedes it.</summary>
+        public Task ClearStartFailedAsync(long appId)
+        {
+            return _redis.GetDatabase().KeyDeleteAsync(AutoStartConstants.StartFailedKey(appId));
+        }
+
         public Task WriteLastActivityAsync(long appId, DateTimeOffset now)
         {
             return _redis.GetDatabase().StringSetAsync(

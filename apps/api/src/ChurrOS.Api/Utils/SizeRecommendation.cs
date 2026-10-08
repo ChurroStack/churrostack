@@ -130,6 +130,78 @@ namespace ChurrOS.Api.Utils
             return null;
         }
 
+        /// <summary>
+        /// Resolves the Kubernetes resource <em>request</em> (CPU cores, memory bytes) that the
+        /// cluster actually reserves for an app's size. <see cref="SizeRequestItem"/> carries the
+        /// preset's <em>limit</em> values, so we recover the smaller request by matching the size
+        /// against the environment catalog and reading its <see cref="EnvironmentSizeDefinition.Requests"/>
+        /// block. Falls back to the size's own (limit) value when no catalog entry matches or the
+        /// entry declares no explicit request — never under-charging an unknown size.
+        /// </summary>
+        public static (double? CpuCores, double? MemoryBytes) ResolveRequest(EnvironmentSizeDefinition[]? sizes, SizeRequestItem? size)
+        {
+            var r = ResolveRequestDetailed(sizes, size);
+            return (r.CpuCores, r.MemoryBytes);
+        }
+
+        /// <summary>
+        /// Like <see cref="ResolveRequest"/>, but also reports whether the request came from a
+        /// catalog entry (<c>FromCatalog = true</c>) or fell back to the size's own limit values
+        /// (<c>false</c> — the catalog-drift / missing-request signal callers may want to log).
+        /// </summary>
+        public static (double? CpuCores, double? MemoryBytes, bool FromCatalog) ResolveRequestDetailed(EnvironmentSizeDefinition[]? sizes, SizeRequestItem? size)
+        {
+            if (size == null)
+                return (null, null, true);
+
+            var requests = FindSizeDefinition(sizes, size)?.Requests;
+            var cpuFromRequest = ParseCpu(requests?.Cpu);
+            var memoryFromRequest = ParseMemory(requests?.Memory);
+            var cpu = cpuFromRequest ?? ParseCpu(size.Cpu);
+            var memory = memoryFromRequest ?? ParseMemory(size.Memory);
+            var fromCatalog = cpuFromRequest.HasValue || memoryFromRequest.HasValue;
+            return (cpu, memory, fromCatalog);
+        }
+
+        /// <summary>
+        /// Finds the catalog entry an app's size corresponds to: prefer an exact
+        /// <see cref="SizeRequestItem.Hint"/> name match, else match by the (cpu, memory, gpu,
+        /// storage) limit tuple. Returns null when nothing matches.
+        /// </summary>
+        private static EnvironmentSizeDefinition? FindSizeDefinition(EnvironmentSizeDefinition[]? sizes, SizeRequestItem size)
+        {
+            if (sizes == null || sizes.Length == 0)
+                return null;
+
+            if (!string.IsNullOrEmpty(size.Hint))
+            {
+                // Case-insensitive to mirror the runner's hint resolution
+                // (CreateDeployment.Handler: StringComparison.OrdinalIgnoreCase), so admission
+                // accounting always resolves the same catalog entry the cluster actually reserves.
+                var byHint = sizes.FirstOrDefault(s => string.Equals(s.Name, size.Hint, StringComparison.OrdinalIgnoreCase));
+                if (byHint != null)
+                    return byHint;
+            }
+
+            var cpu = ParseCpu(size.Cpu);
+            var memory = ParseMemory(size.Memory);
+            var gpu = NormalizeGpu(size.Gpu);
+            var storage = ParseMemory(size.Storage);
+
+            foreach (var def in sizes)
+            {
+                var quota = def.Limits ?? def.Requests;
+                if (quota == null)
+                    continue;
+                if (ParseCpu(quota.Cpu) != cpu) continue;
+                if (ParseMemory(quota.Memory) != memory) continue;
+                if (NormalizeGpu(quota.Gpu) != gpu) continue;
+                if (storage != null && ParseMemory(quota.Storage) != storage) continue;
+                return def;
+            }
+            return null;
+        }
+
         /// <summary>True when two sizes describe the same amount of resources.</summary>
         public static bool SameSize(SizeRequestItem? a, SizeRequestItem? b)
         {

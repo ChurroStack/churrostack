@@ -33,18 +33,26 @@ function ResourceUsageBar({
   const requested = resource?.requested ?? 0;
   const allocated = resource?.allocated ?? 0;
   const quota = resource?.quota;
-
-  // Scale relative to quota when known, otherwise to the largest tracked value.
-  const denominator = quota && quota > 0 ? quota : Math.max(allocated, requested, used, 1);
-  const pct = (value: number) => Math.min(100, (value / denominator) * 100);
+  // Effective admission ceiling (quota × overcommit factor). Falls back to quota.
+  const ceiling = resource?.ceiling ?? quota;
 
   const hasQuota = !!quota && quota > 0;
-  // Percentages in the tooltip are always relative to quota. When no quota is set,
-  // a percentage is meaningless (the bar self-scales), so we omit the suffix.
+  const hasCeiling = !!ceiling && ceiling > 0;
+  // The overcommit band exists when the effective ceiling meaningfully exceeds the base quota.
+  const hasOvercommit = hasQuota && hasCeiling && ceiling! > quota! * 1.0001;
+
+  // Scale the track to the effective ceiling when known, else the quota, else self-scale.
+  const scaleTo = hasCeiling ? ceiling! : hasQuota ? quota! : Math.max(allocated, requested, used, 1);
+  const pct = (value: number) => Math.min(100, (value / scaleTo) * 100);
+
+  // Percentages in the tooltip are relative to the base quota (the number the user knows).
+  // When no quota is set, a percentage is meaningless (the bar self-scales), so we omit it.
   const pctSuffix = (value: number) => (hasQuota ? ` (${formatPercent((value / quota!) * 100)})` : '');
-  // Over-allocation is the cluster-meaningful overflow: Allocated > Quota means
-  // the env *could* exceed its ceiling if every app started. Highlight gray in amber.
-  const isOverAllocated = hasQuota && allocated > quota!;
+  // Real overflow now means exceeding the *effective ceiling* — Allocated between quota and
+  // ceiling is expected headroom under overcommit, not an alarm. Highlight gray in amber only
+  // when it passes the ceiling.
+  const overflowLimit = hasCeiling ? ceiling! : quota;
+  const isOverAllocated = !!overflowLimit && allocated > overflowLimit;
   const allocatedBarClass = isOverAllocated
     ? 'bg-amber-300 dark:bg-amber-600'
     : 'bg-gray-300 dark:bg-gray-600';
@@ -66,8 +74,21 @@ function ResourceUsageBar({
               aria-label={label}
               aria-valuenow={used}
               aria-valuemin={0}
-              aria-valuemax={quota ?? Math.max(allocated, requested, used)}
+              aria-valuemax={scaleTo}
               className="relative h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+              {/* Overcommit band: the region between the base quota and the effective ceiling,
+                  shown as subtle stripes so the extra headroom reads as "oversubscribed". */}
+              {hasOvercommit && (
+                <div
+                  className="absolute inset-y-0"
+                  style={{
+                    left: `${pct(quota!)}%`,
+                    right: 0,
+                    backgroundImage:
+                      'repeating-linear-gradient(45deg, rgba(251,191,36,0.35) 0, rgba(251,191,36,0.35) 2px, transparent 2px, transparent 5px)'
+                  }}
+                />
+              )}
               {/* Back-to-front: allocated (widest, gray) → requested (blue) → used (green). */}
               <div
                 className={`absolute inset-y-0 left-0 ${allocatedBarClass}`}
@@ -81,6 +102,13 @@ function ResourceUsageBar({
                 className="absolute inset-y-0 left-0 bg-emerald-500"
                 style={{ width: `${pct(used)}%` }}
               />
+              {/* Base-quota marker line when an overcommit ceiling extends the track past it. */}
+              {hasOvercommit && (
+                <div
+                  className="absolute inset-y-0 w-px bg-gray-500/70 dark:bg-gray-300/60"
+                  style={{ left: `${pct(quota!)}%` }}
+                />
+              )}
             </div>
           </div>
         </TooltipTrigger>
@@ -102,6 +130,12 @@ function ResourceUsageBar({
             <div className="text-muted-foreground">
               {t('Quota')}: {quotaDisplay}
             </div>
+            {hasOvercommit && (
+              <div className="text-amber-500">
+                {t('Overcommit ceiling')}: {formatValue(ceiling!, format)}
+                {` (${formatPercent((ceiling! / quota!) * 100)})`}
+              </div>
+            )}
           </div>
         </TooltipContent>
       </Tooltip>

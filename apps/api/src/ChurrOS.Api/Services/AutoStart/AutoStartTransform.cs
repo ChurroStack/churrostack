@@ -79,6 +79,13 @@ namespace ChurrOS.Api.Services.AutoStart
                     await WriteJsonAsync(context, StatusCodes.Status504GatewayTimeout,
                         "Application did not become ready in time.");
                     return false;
+                case HoldOutcome.Rejected:
+                    // Admission failed (e.g. environment at capacity). Fail fast with the reason
+                    // instead of making the client wait out the hold timeout.
+                    var reason = await _autoStartCache.GetStartFailedAsync(route.AppId)
+                                 ?? "Environment is at capacity; please retry.";
+                    await WriteJsonAsync(context, StatusCodes.Status503ServiceUnavailable, reason);
+                    return false;
                 default:
                     await WriteJsonAsync(context, StatusCodes.Status503ServiceUnavailable,
                         "Auto-start unavailable; please retry.");

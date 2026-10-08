@@ -27,6 +27,11 @@
         public EnvironmentQuotaDefinition? Limits { get; set; }
 
         /// <summary>
+        /// Per-environment resource overcommit factors (optional; null → defaults applied).
+        /// </summary>
+        public EnvironmentOvercommitDefinition? Overcommit { get; set; }
+
+        /// <summary>
         /// Environment available sizes
         /// </summary>
         public EnvironmentSizeDefinition[]? Sizes { get; set; }
