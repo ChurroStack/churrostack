@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/ChurroStack/churrostack/compare/v1.11.0...v1.11.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **git-sync:** stop persisting credentials in the clone's remote url ([#61](https://github.com/ChurroStack/churrostack/issues/61)) ([d045ef5](https://github.com/ChurroStack/churrostack/commit/d045ef51f920b1999ec07fc3732f1a303838b1cb))
+
 ## [1.11.0](https://github.com/ChurroStack/churrostack/compare/v1.10.0...v1.11.0) (2026-10-08)
 
 
