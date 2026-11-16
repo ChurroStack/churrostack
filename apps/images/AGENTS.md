@@ -62,8 +62,9 @@ checked into the repo (no download at build time).
 ### git-sync environment variables
 
 `GIT_REPOSITORY_URL` (required), `GIT_REPOSITORY_BRANCH` (default `main`),
-`GIT_REPOSITORY_USERNAME` / `GIT_REPOSITORY_PASSWORD` (optional, injected into
-the HTTPS URL), `SYNC_DIR` (default `/app/home/code`), `SYNC_PERIOD` (default
+`GIT_REPOSITORY_USERNAME` / `GIT_REPOSITORY_PASSWORD` (optional, supplied via a
+git credential helper on every run — never stored in the remote URL or
+`.git/config`), `SYNC_DIR` (default `/app/home/code`), `SYNC_PERIOD` (default
 `60`).
 
 ## Per-image layout convention
