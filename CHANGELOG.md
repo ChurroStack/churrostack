@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/ChurroStack/churrostack/compare/v1.11.1...v1.12.0) (2026-11-23)
+
+
+### Features
+
+* **identities:** sync users and groups from Microsoft Entra ([#64](https://github.com/ChurroStack/churrostack/issues/64)) ([04a2dfd](https://github.com/ChurroStack/churrostack/commit/04a2dfd9a748d2e393d442c5be0adae5d278c669))
+
 ## [1.11.1](https://github.com/ChurroStack/churrostack/compare/v1.11.0...v1.11.1) (2026-11-16)
 
 
