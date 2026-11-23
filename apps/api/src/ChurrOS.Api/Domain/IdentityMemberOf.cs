@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using ChurrOS.Api.Models.Dtos.Identity;
+using System.ComponentModel.DataAnnotations;
 
 namespace ChurrOS.Api.Domain
 {
@@ -16,8 +17,12 @@ namespace ChurrOS.Api.Domain
         public long GroupId { get; protected set; }
         public virtual Identity? Group { get; protected set; }
 
-        public IdentityMemberOf(long accountId, long identityId, long groupId)
+        /// <summary>Local = added by an admin (never removed by sync); Entra = added by the Entra sync.</summary>
+        public IdentitySource Source { get; protected set; }
+
+        public IdentityMemberOf(long accountId, long identityId, long groupId, IdentitySource source = IdentitySource.Local)
         {
+            Source = source;
             AccountId = accountId;
             IdentityId = identityId;
             GroupId = groupId;

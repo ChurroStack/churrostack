@@ -24,6 +24,7 @@ These rules take precedence over all other guidance in this file.
 Canonical vocabulary docs live under [`docs/concepts/`](docs/concepts/). Read the relevant one before touching the area — names are deliberate and the UI, API, and enforcement code are expected to use the same words.
 
 - [Environment resources — Used / Requested / Allocated / Quota](docs/concepts/environment-resources.md): what each of the four resource numbers means, where they're computed, and how CPU/Memory quota enforcement (`EnsureEnvironmentRunningQuota` + per-env Redis lock) works.
+- [Identity sync (Microsoft Entra)](docs/concepts/identity-sync.md): Source / Linked / Disabled vocabulary, filter semantics, why users are disabled rather than deleted, and the Redis status/cancel contract.
 
 ## Traceability
 

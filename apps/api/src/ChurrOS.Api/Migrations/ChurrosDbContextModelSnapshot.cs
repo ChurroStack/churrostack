@@ -1333,6 +1333,11 @@ namespace ChurrOS.Api.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("display_name");
 
+                    b.Property<string>("ExternalId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("external_id");
+
                     b.Property<DateTimeOffset?>("LockAfter")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("lock_after");
@@ -1360,6 +1365,12 @@ namespace ChurrOS.Api.Migrations
                         .HasColumnType("smallint")
                         .HasColumnName("role");
 
+                    b.Property<byte>("Source")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasDefaultValue((byte)0)
+                        .HasColumnName("source");
+
                     b.Property<int>("Type")
                         .HasColumnType("integer")
                         .HasColumnName("type");
@@ -1372,6 +1383,11 @@ namespace ChurrOS.Api.Migrations
 
                     b.HasIndex("AccountId", "CreatedById")
                         .HasDatabaseName("ix_identity_account_id_created_by_id");
+
+                    b.HasIndex("AccountId", "ExternalId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_identity_account_id_external_id")
+                        .HasFilter("external_id IS NOT NULL");
 
                     b.HasIndex("AccountId", "ModifiedById")
                         .HasDatabaseName("ix_identity_account_id_modified_by_id");
@@ -1396,6 +1412,12 @@ namespace ChurrOS.Api.Migrations
                     b.Property<long>("GroupId")
                         .HasColumnType("bigint")
                         .HasColumnName("group_id");
+
+                    b.Property<byte>("Source")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasDefaultValue((byte)0)
+                        .HasColumnName("source");
 
                     b.HasKey("AccountId", "IdentityId", "GroupId")
                         .HasName("pk_identity_member");

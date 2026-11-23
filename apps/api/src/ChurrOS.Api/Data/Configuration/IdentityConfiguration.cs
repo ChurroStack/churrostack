@@ -17,6 +17,8 @@ namespace ChurrOS.Api.Data.Configuration
             builder.HasOne(o => o.CreatedBy).WithMany().HasForeignKey(o => new { o.AccountId, o.CreatedById });
             builder.HasOne(o => o.ModifiedBy).WithMany().HasForeignKey(o => new { o.AccountId, o.ModifiedById });
             builder.HasIndex(o => new { o.AccountId, o.Name }).IsUnique();
+            builder.Property(o => o.Source).HasDefaultValue(IdentitySource.Local);
+            builder.HasIndex(o => new { o.AccountId, o.ExternalId }).IsUnique().HasFilter("external_id IS NOT NULL");
             builder.HasMany(o => o.MemberOf).WithOne(o => o.Identity).HasForeignKey(o => new { o.AccountId, o.IdentityId });
             builder.Property(p => p.Properties)
                 .HasColumnType("jsonb")

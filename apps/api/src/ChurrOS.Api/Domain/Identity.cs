@@ -38,6 +38,13 @@ namespace ChurrOS.Api.Domain
 
         public DateTimeOffset? LockAfter { get; protected set; }
 
+        /// <summary>Who owns this identity: an admin (Local) or the Microsoft Entra sync (Entra).</summary>
+        public IdentitySource Source { get; protected set; }
+
+        /// <summary>Microsoft Entra object id when the identity is created by, or linked to, the Entra sync.</summary>
+        [MaxLength(64)]
+        public string? ExternalId { get; protected set; }
+
         [Required]
         public DateTimeOffset CreatedAt { get; protected set; }
 
@@ -66,6 +73,31 @@ namespace ChurrOS.Api.Domain
             AclId = aclId;
             Properties = properties ?? new IdentityProperties(new Dictionary<string, string>(), new Dictionary<string, IdentityToken>(), new Dictionary<string, object>());
             LockAfter = lockAfter;
+        }
+
+        public void SetName(string name)
+        {
+            Name = name.ToLowerInvariant().Trim();
+        }
+
+        public void SetSource(IdentitySource source)
+        {
+            Source = source;
+        }
+
+        public void LinkExternal(string externalId)
+        {
+            ExternalId = externalId;
+        }
+
+        public void Disable(DateTimeOffset now)
+        {
+            LockAfter = now;
+        }
+
+        public void Enable()
+        {
+            LockAfter = null;
         }
 
         public void SetDisplayName(string displayName)
