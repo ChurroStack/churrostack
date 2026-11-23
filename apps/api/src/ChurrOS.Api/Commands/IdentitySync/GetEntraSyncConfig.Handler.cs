@@ -33,8 +33,8 @@ namespace ChurrOS.Api.Commands.IdentitySync
             var account = await _dbContext.Set<Domain.Account>().AsNoTracking().Where(o => o.Id == accountId).Select(o => new { o.Metadata }).SingleAsync(cancellationToken);
 
             var config = EntraSyncConfigStore.Read(account.Metadata);
-            config.TenantId = GraphDirectoryClient.ConfiguredTenantId(_configuration); // read-only: comes from server config
-            return new EntraSyncConfigItem { Config = config, Available = GraphDirectoryClient.IsAvailable(_configuration) };
+            config.TenantId = EntraSyncConfigStore.ResolveTenantId(account.Metadata, _configuration); // read-only: operator-set
+            return new EntraSyncConfigItem { Config = config, Available = EntraSyncConfigStore.IsAvailable(account.Metadata, _configuration) };
         }
     }
 }

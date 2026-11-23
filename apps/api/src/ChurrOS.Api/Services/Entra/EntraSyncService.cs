@@ -81,9 +81,9 @@ namespace ChurrOS.Api.Services.Entra
 
                 var account = await _dbContext.Set<Domain.Account>().AsNoTracking().Where(o => o.Id == accountId).Select(o => new { o.Metadata }).SingleAsync(cancellationToken);
                 var config = EntraSyncConfigStore.Read(account.Metadata);
-                var tenantId = GraphDirectoryClient.ConfiguredTenantId(_configuration);
+                var tenantId = EntraSyncConfigStore.ResolveTenantId(account.Metadata, _configuration);
                 if (!GraphDirectoryClient.IsConfigured(_configuration) || tenantId is null)
-                    throw new EntraSyncException("Entra sync is not configured on the server (ExternalProviders:Microsoft ClientId, ClientSecret and TenantId).");
+                    throw new EntraSyncException("Entra sync is not configured (ExternalProviders:Microsoft ClientId/ClientSecret, and a tenant: account entraTenantId or ExternalProviders:Microsoft:TenantId).");
 
                 _graph.UseTenant(tenantId);
                 var filter = config.Filter.Enabled && config.Filter.Rules.Count > 0 ? config.Filter : null;

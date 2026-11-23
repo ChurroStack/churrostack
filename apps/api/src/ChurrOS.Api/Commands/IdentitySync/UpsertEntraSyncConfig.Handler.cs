@@ -42,14 +42,18 @@ namespace ChurrOS.Api.Commands.IdentitySync
             await _mediator.Send(new EnsureHasRole(IdentityRole.Administrator, _dbContext.IdentityId), cancellationToken);
 
             var config = Normalize(request.Body);
-            // The tenant is never taken from the request: it is fixed by server config (see GraphDirectoryClient.ConfiguredTenantId).
-            config.TenantId = GraphDirectoryClient.ConfiguredTenantId(_configuration);
-            Validate(config);
 
             var accountId = _tenantResolver.AccountId;
             var account = await _dbContext.Set<Domain.Account>().SingleAsync(o => o.Id == accountId, cancellationToken);
+
+            // The tenant is never taken from the request: it is the operator-set account.entraTenantId (or the server default).
+            var tenantId = EntraSyncConfigStore.ResolveTenantId(account.Metadata, _configuration);
+            Validate(config, tenantId);
+
+            config.TenantId = null; // not stored under entraSync: the single source of truth is entraTenantId / server config
             account.SetContent(EntraSyncConfigStore.Merge(account.Metadata, config));
             await _dbContext.SaveChangesAsync(cancellationToken);
+            config.TenantId = tenantId;
 
             // GetTenant() caches the Account for 1h; evict so quota/domain readers (and other config readers) see the new metadata.
             var accountCacheKey = $"tenant:{accountId}:account";
@@ -62,7 +66,7 @@ namespace ChurrOS.Api.Commands.IdentitySync
             _logger.LogInformation("[EntraSync] accountId={AccountId} outcome=config_saved scheduled={Scheduled} filterEnabled={FilterEnabled} rules={Rules}",
                 accountId, config.Enabled, config.Filter.Enabled, config.Filter.Rules.Count);
 
-            return new EntraSyncConfigItem { Config = config, Available = GraphDirectoryClient.IsAvailable(_configuration) };
+            return new EntraSyncConfigItem { Config = config, Available = EntraSyncConfigStore.IsAvailable(account.Metadata, _configuration) };
         }
 
         private static EntraSyncConfig Normalize(EntraSyncConfig body) => new()
@@ -85,10 +89,10 @@ namespace ChurrOS.Api.Commands.IdentitySync
         // Graph user properties are camelCase (companyName); accept 'CompanyName' too.
         private static string CamelCase(string value) => value.Length == 0 ? value : char.ToLowerInvariant(value[0]) + value[1..];
 
-        private static void Validate(EntraSyncConfig config)
+        private static void Validate(EntraSyncConfig config, string? tenantId)
         {
-            if (config.Enabled && string.IsNullOrWhiteSpace(config.TenantId))
-                throw new ArgumentException("Entra sync is not configured on the server (ExternalProviders:Microsoft:TenantId).");
+            if (config.Enabled && tenantId is null)
+                throw new ArgumentException("Entra sync is not configured: set the account's entraTenantId or ExternalProviders:Microsoft:TenantId.");
 
             EntraSyncScheduling.ToQuartzCron(config.CronExpression); // throws ArgumentException when invalid
 

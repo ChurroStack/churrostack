@@ -12,7 +12,7 @@ export interface EntraFilter {
 
 export interface EntraSyncConfig {
   enabled: boolean;
-  /** Read-only: fixed by server config (ExternalProviders:Microsoft:TenantId); ignored when saving. */
+  /** Read-only: set by the operator (account entraTenantId, else ExternalProviders:Microsoft:TenantId); ignored when saving. */
   tenantId?: string;
   cronExpression: string;
   filter: EntraFilter;

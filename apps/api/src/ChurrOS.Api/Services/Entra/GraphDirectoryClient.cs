@@ -34,19 +34,6 @@ namespace ChurrOS.Api.Services.Entra
             !string.IsNullOrWhiteSpace(configuration["ExternalProviders:Microsoft:ClientId"])
             && !string.IsNullOrWhiteSpace(configuration["ExternalProviders:Microsoft:ClientSecret"]);
 
-        /// <summary>
-        /// The Entra tenant the platform app registration is allowed to sync from (server config, never user input).
-        /// A per-account free-text tenant would let any account admin point the shared client secret at another
-        /// organisation's tenant (if it consented to the app) and copy its directory into their account.
-        /// </summary>
-        public static string? ConfiguredTenantId(IConfiguration configuration)
-        {
-            var tenant = configuration["ExternalProviders:Microsoft:TenantId"]?.Trim();
-            return string.IsNullOrWhiteSpace(tenant) ? null : tenant;
-        }
-
-        /// <summary>App registration (ClientId/ClientSecret) and tenant are all configured on the server.</summary>
-        public static bool IsAvailable(IConfiguration configuration) => IsConfigured(configuration) && ConfiguredTenantId(configuration) is not null;
 
         public void UseTenant(string tenantId)
         {

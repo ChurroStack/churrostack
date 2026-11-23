@@ -139,7 +139,7 @@ export function EntraSyncDialog({
             <AlertTitle>{t('Microsoft app registration not configured')}</AlertTitle>
             <AlertDescription>
               {t(
-                'Set ExternalProviders:Microsoft:ClientId, ClientSecret and TenantId on the server (application permissions User.Read.All and GroupMember.Read.All with admin consent).'
+                'Set ExternalProviders:Microsoft:ClientId and ClientSecret on the server, and a tenant: the account entraTenantId or ExternalProviders:Microsoft:TenantId (application permissions User.Read.All and GroupMember.Read.All with admin consent).'
               )}
             </AlertDescription>
           </Alert>
@@ -156,14 +156,12 @@ export function EntraSyncDialog({
               <FieldGroup className="flex flex-row gap-4">
                 <Field className="flex-1">
                   <FieldLabel htmlFor="entra-tenant">{t('Tenant ID')}</FieldLabel>
-                  <Input
-                    id="entra-tenant"
-                    placeholder="contoso.onmicrosoft.com"
-                    value={tenantId}
-                    readOnly
-                    disabled
-                  />
-                  <FieldDescription>{t('Set by the server (ExternalProviders:Microsoft:TenantId); it cannot be changed here.')}</FieldDescription>
+                  <Input id="entra-tenant" placeholder="contoso.onmicrosoft.com" value={tenantId} readOnly disabled />
+                  <FieldDescription>
+                    {t(
+                      'Set by the operator (the account entraTenantId, or ExternalProviders:Microsoft:TenantId by default); it cannot be changed here.'
+                    )}
+                  </FieldDescription>
                 </Field>
               </FieldGroup>
               <FieldGroup className="flex flex-row items-end gap-4">

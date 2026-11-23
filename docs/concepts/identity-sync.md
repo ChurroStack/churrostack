@@ -26,7 +26,8 @@ Vocabulary and contracts for the **Sync from Microsoft Entra** feature (Settings
 ## Configuration
 
 - Per account, in `Account.Metadata["entraSync"]`: `{ enabled, cronExpression (5-field, UTC), filter: { enabled, rules: [{ property, values[] }] } }`.
-- `ClientId` / `ClientSecret` / **`TenantId`** are server config (`ExternalProviders:Microsoft:*`; OAuth client-credentials against `https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token`). The tenant is **never taken from the request**: the app secret is shared by the whole platform, so a user-supplied tenant would let any account admin pull another organisation's directory (if it had consented to the app) into their account. One Entra tenant per install; supporting several customer tenants needs a verified per-account tenant binding (admin-consent / `tid` proof) first.
+- `ClientId` / `ClientSecret` are server config (`ExternalProviders:Microsoft:*`; OAuth client-credentials against `https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token`).
+- **Tenant:** `Account.Metadata["entraTenantId"]` — set by the operator directly in the account entry — wins; if absent, the server default `ExternalProviders:Microsoft:TenantId` is used. A malformed account value is a misconfiguration (sync unavailable), not a fallback. The tenant is **never taken from the request or editable in the UI**: the app secret is shared by the whole installation, so a user-supplied tenant would let an account admin pull another organisation's directory (if it had consented to the app) into their account. Note that accounts without their own `entraTenantId` all share the default tenant, so on an installation hosting unrelated accounts set `entraTenantId` on every account and leave the default empty.
 - The app registration needs **application** permissions `User.Read.All` and `GroupMember.Read.All` with admin consent (the login only needs delegated `User.Read`).
 
 ## Cache / state contract

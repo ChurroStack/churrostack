@@ -40,8 +40,9 @@ namespace ChurrOS.Api.Commands.IdentitySync
             var accountId = _tenantResolver.AccountId;
             var now = DateTimeOffset.UtcNow;
 
-            if (!GraphDirectoryClient.IsAvailable(_configuration))
-                throw new ArgumentException("Entra sync is not configured on the server (ExternalProviders:Microsoft ClientId, ClientSecret and TenantId).");
+            var account = await _dbContext.Set<Domain.Account>().AsNoTracking().Where(o => o.Id == accountId).Select(o => new { o.Metadata }).SingleAsync(cancellationToken);
+            if (!EntraSyncConfigStore.IsAvailable(account.Metadata, _configuration))
+                throw new ArgumentException("Entra sync is not configured (ExternalProviders:Microsoft ClientId/ClientSecret, and a tenant: account entraTenantId or ExternalProviders:Microsoft:TenantId).");
 
             var current = EntraSyncConfigStore.Normalize(
                 await _cacheService.GetAsync<EntraSyncStatus>(EntraSyncConfigStore.StatusKey(accountId), cancellationToken), now);
