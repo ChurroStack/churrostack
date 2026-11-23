@@ -4,6 +4,7 @@ import { useProfile } from './profile';
 
 export type IdentityType = 'user' | 'group' | 'application';
 export type IdentityRole = 'user' | 'administrator';
+export type IdentitySource = 'local' | 'entra';
 export type IdentityPermissionLevel = 'owner' | 'contribute' | 'read' | 'execute' | 'none';
 export type MembersMode = 'onlyInheritance' | 'onlyUniques' | 'mixed';
 export type IdentityAccessMode = 'readOnly' | 'collaborate' | 'fullControl';
@@ -31,6 +32,12 @@ export interface IdentityItem {
   role: IdentityRole;
   accessMode: IdentityAccessMode;
   modifiedAt: string;
+  /** 'entra' = created by the Microsoft Entra sync; 'local' = managed by admins. */
+  source?: IdentitySource;
+  /** A local identity matched to an Entra object (kept in sync but never disabled by the sync). */
+  linked?: boolean;
+  /** Access blocked (e.g. the user no longer exists in Entra). */
+  disabled?: boolean;
 }
 
 export interface MemberSummary {

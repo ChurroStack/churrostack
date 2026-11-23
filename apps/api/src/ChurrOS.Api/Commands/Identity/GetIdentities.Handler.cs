@@ -66,11 +66,16 @@ namespace ChurrOS.Api.Commands.Identity
 
             totalItems = await identityQuery.CountAsync(cancellationToken: cancellationToken);
 
-            result = await identityQuery
+            var rows = await identityQuery
                 .Skip((int)request.Skip)
                 .Take((int)request.Top)
-                .Select(o => new IdentityItem(o.Id, o.Name, o.DisplayName, o.Role, o.Type, o.ModifiedAt))
+                .Select(o => new { o.Id, o.Name, o.DisplayName, o.Role, o.Type, o.ModifiedAt, o.Source, o.ExternalId, o.LockAfter })
                 .ToListAsync(cancellationToken: cancellationToken);
+
+            var now = DateTimeOffset.UtcNow;
+            result = rows
+                .Select(o => new IdentityItem(o.Id, o.Name, o.DisplayName, o.Role, o.Type, o.ModifiedAt, o.Source, o.ExternalId != null, o.LockAfter.HasValue && o.LockAfter.Value <= now))
+                .ToList();
 
             //if (request.IncludeNames?.Length > 0)
             //{

@@ -569,6 +569,8 @@ namespace ChurrOS.Api
             builder.Services.AddScoped<ITenantResolver, WebTenantResolver>();
             builder.Services.AddScoped<IAccountMembershipResolver, AccountMembershipResolver>();
             builder.Services.AddScoped<QuotaService, QuotaService>();
+            builder.Services.AddHttpClient<ChurrOS.Api.Services.Entra.GraphDirectoryClient>(); // typed client: inherits the standard resilience handler (429/5xx retry)
+            builder.Services.AddScoped<ChurrOS.Api.Services.Entra.EntraSyncService>();
             builder.Services.AddSingleton<IIdGeneratorService, IdGenerationService>();
             builder.Services.AddSingleton<ICacheService, RedisCacheService>();
             builder.Services.AddSingleton<ILockService, RedisLockService>();

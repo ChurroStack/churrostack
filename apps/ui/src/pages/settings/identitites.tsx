@@ -13,6 +13,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatDateTime, formatDistanceToNow } from '@/extensions';
+import { Spinner } from '@/components/ui/spinner';
+import {
+  isEntraSyncActive,
+  useEntraSyncStatus,
+  useStartEntraSync,
+  useStopEntraSync,
+  type EntraSyncStatus
+} from '@/hooks/data/identity-sync';
 import {
   getIdentityRoleIcon,
   getIdentityTypeIcon,
@@ -25,11 +33,23 @@ import {
 } from '@/hooks/data/identities';
 import { DropdownMenu } from '@radix-ui/react-dropdown-menu';
 import { createColumnHelper, type ColumnDef } from '@tanstack/react-table';
-import { AlertCircle, DownloadCloud, MoreVertical, Shield, UploadCloud, UserRoundSearch, Users } from 'lucide-react';
+import {
+  AlertCircle,
+  DownloadCloud,
+  MoreVertical,
+  Play,
+  RefreshCcw,
+  Shield,
+  Square,
+  UploadCloud,
+  UserRoundSearch,
+  Users
+} from 'lucide-react';
 import type { QueryOptions } from 'odata-query';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { EntraSyncDialog } from './dialogs/entra-sync';
 import { UpsertIdentityModal } from './dialogs/upsert-identity';
 import { getOidc } from '@/oidc';
 import { baseUrl } from '@/hooks/data/core';
@@ -47,6 +67,12 @@ export default function IdentitiesPage() {
   const [identitySelected, setIdentitySelected] = useState<IdentityItem | undefined>(undefined);
   const [showUpsertDialog, setShowUpsertDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showEntraDialog, setShowEntraDialog] = useState(false);
+  const [dismissedRunId, setDismissedRunId] = useState<string | undefined>(undefined);
+  const { data: syncStatus, fetchAsync: fetchSyncStatus } = useEntraSyncStatus();
+  const { isFetching: isStartingSync, error: startSyncError, startAsync: startSync } = useStartEntraSync();
+  const { isFetching: isStoppingSync, error: stopSyncError, stopAsync: stopSync } = useStopEntraSync();
+  const previousSyncStatus = useRef<EntraSyncStatus | undefined>(undefined);
 
   const queryString = `search=${query.search ?? ''}${query.top ? `&top=${query.top}` : ''}${
     query.skip ? `&skip=${query.skip}` : ''
@@ -113,18 +139,72 @@ export default function IdentitiesPage() {
     reload();
   }, [query]);
 
+  // Poll the Entra sync status: every 3s while a run is active, every 30s otherwise (so scheduled runs show up).
+  const syncActive = isEntraSyncActive(syncStatus);
+  useEffect(() => {
+    fetchSyncStatus('');
+    const interval = window.setInterval(() => fetchSyncStatus(''), syncActive ? 3_000 : 30_000);
+    return () => window.clearInterval(interval);
+  }, [syncActive]);
+
+  // When a run finishes: reload the table and report the outcome once.
+  useEffect(() => {
+    const previous = previousSyncStatus.current;
+    previousSyncStatus.current = syncStatus;
+    if (!syncStatus || !previous || !isEntraSyncActive(previous) || isEntraSyncActive(syncStatus)) return;
+    reload();
+    if (syncStatus.state === 'succeeded') toast.success(`${t('Entra sync completed')}: ${syncStatus.summary ?? ''}`);
+  }, [syncStatus]);
+
+  const onStartSync = async () => {
+    setDismissedRunId(undefined);
+    const result = await startSync();
+    if (result.error) toast.error(result.error);
+    fetchSyncStatus('');
+  };
+
+  const onStopSync = async () => {
+    const result = await stopSync();
+    if (result.error) toast.error(result.error);
+    fetchSyncStatus('');
+  };
+
   const columnHelper = createColumnHelper<IdentityItem>();
   const columns = [
     columnHelper.accessor('name', {
       id: 'name',
       header: () => t('Name'),
       cell: ({ row }) => (
-        <Button
-          variant="link"
-          className="cursor-pointer p-0 has-[>svg]:px-0"
-          onClick={() => onSelectIdentity(row.original)}>
-          {getUserIcon(row.original)} {row.original.name}
-        </Button>
+        <div className="flex flex-row items-center gap-2">
+          <Button
+            variant="link"
+            className="cursor-pointer p-0 has-[>svg]:px-0"
+            onClick={() => onSelectIdentity(row.original)}>
+            {getUserIcon(row.original)} {row.original.name}
+          </Button>
+          {(row.original.source === 'entra' || row.original.linked) && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline">{t('Entra')}</Badge>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {row.original.source === 'entra'
+                  ? t('Created and managed by the Microsoft Entra sync')
+                  : t('Linked to a Microsoft Entra object')}
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {row.original.disabled && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="secondary">{t('Disabled')}</Badge>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {t('Access is blocked (no longer present in Microsoft Entra)')}
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       )
     }),
     columnHelper.accessor('displayName', {
@@ -235,6 +315,22 @@ export default function IdentitiesPage() {
               <DownloadCloud />
               {t('Download import identities template')}
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => setShowEntraDialog(true)}>
+              <RefreshCcw />
+              {t('Sync from Microsoft Entra...')}
+            </DropdownMenuItem>
+            {syncActive ? (
+              <DropdownMenuItem disabled={isStoppingSync} onSelect={onStopSync}>
+                <Square />
+                {t('Stop Entra sync')}
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem disabled={isStartingSync} onSelect={onStartSync}>
+                <Play />
+                {t('Start Entra sync')}
+              </DropdownMenuItem>
+            )}
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -333,6 +429,65 @@ export default function IdentitiesPage() {
           <AlertDescription>{error || deleteError}</AlertDescription>
         </Alert>
       )}
+      {(startSyncError || stopSyncError) && (
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertTitle>{t('Entra sync')}</AlertTitle>
+          <AlertDescription>{startSyncError || stopSyncError}</AlertDescription>
+        </Alert>
+      )}
+      {syncStatus && syncActive && (
+        <Alert>
+          <Spinner className="size-4" />
+          <AlertTitle>{t('Syncing from Microsoft Entra...')}</AlertTitle>
+          <AlertDescription>
+            <div className="flex w-full flex-row items-center justify-between gap-2">
+              <span>
+                {syncStatus.state === 'queued' ? t('Waiting to start') : syncStatus.phase}
+                {syncStatus.processed > 0
+                  ? ` (${syncStatus.processed}${syncStatus.total ? ` / ${syncStatus.total}` : ''})`
+                  : ''}
+              </span>
+              <Button variant="outline" size="sm" disabled={isStoppingSync} onClick={onStopSync}>
+                <Square /> {t('Stop')}
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+      {syncStatus && syncStatus.state === 'failed' && dismissedRunId !== syncStatus.runId && (
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertTitle>{t('Entra sync failed')}</AlertTitle>
+          <AlertDescription>
+            <div className="flex w-full flex-row items-center justify-between gap-2">
+              <span>{syncStatus.error}</span>
+              <span className="flex flex-row gap-2">
+                <Button variant="outline" size="sm" disabled={isStartingSync} onClick={onStartSync}>
+                  <RefreshCcw /> {t('Retry')}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setDismissedRunId(syncStatus.runId)}>
+                  {t('Dismiss')}
+                </Button>
+              </span>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+      {syncStatus && syncStatus.state === 'cancelled' && dismissedRunId !== syncStatus.runId && (
+        <Alert>
+          <AlertCircle className="size-4" />
+          <AlertTitle>{t('Entra sync stopped')}</AlertTitle>
+          <AlertDescription>
+            <div className="flex w-full flex-row items-center justify-between gap-2">
+              <span>{t('No changes were applied.')}</span>
+              <Button variant="ghost" size="sm" onClick={() => setDismissedRunId(syncStatus.runId)}>
+                {t('Dismiss')}
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
       <input
         type="file"
         ref={fileInputRef}
@@ -368,6 +523,16 @@ export default function IdentitiesPage() {
           </div>
         ]}
         rightOptions={toolbar}
+      />
+      <EntraSyncDialog
+        showDialog={showEntraDialog}
+        lastStatus={syncStatus}
+        onClose={() => setShowEntraDialog(false)}
+        onSaved={() => {
+          setShowEntraDialog(false);
+          setDismissedRunId(undefined);
+          fetchSyncStatus('');
+        }}
       />
       {showUpsertDialog && (
         <UpsertIdentityModal
