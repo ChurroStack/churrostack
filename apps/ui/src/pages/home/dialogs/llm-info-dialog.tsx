@@ -57,7 +57,7 @@ const LlmInfoDialog = ({ children, llm }: { children: React.ReactNode; llm: Gall
             <AlertTitle>{t('An API key or user access token is required to use this model')}</AlertTitle>
             <AlertDescription>
               {t(
-                'Access key must be passed as Authorization header with Bearer scheme (e.g Authorization: Bearer sk-...)'
+                'Access key must be passed as Authorization header with Bearer scheme (e.g Authorization: Bearer <your_api_key>)'
               )}{' '}
               <br />
               <div className="inline flex-row">
