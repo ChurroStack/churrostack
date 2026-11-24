@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.1](https://github.com/ChurroStack/churrostack/compare/v1.12.0...v1.12.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **ui:** use a generic placeholder in the bearer token hint ([#66](https://github.com/ChurroStack/churrostack/issues/66)) ([53e3f97](https://github.com/ChurroStack/churrostack/commit/53e3f97659b7b1614c0fba43575f98971965c3e4))
+
 ## [1.12.0](https://github.com/ChurroStack/churrostack/compare/v1.11.1...v1.12.0) (2026-11-23)
 
 
