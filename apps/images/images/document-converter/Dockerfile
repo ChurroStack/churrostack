@@ -52,6 +52,10 @@ RUN apt-get update \
     && update-ca-certificates \
     && fc-cache -f
 
+# Extra fonts dropped into ./fonts (contents gitignored, local builds only) -- see README "Fonts".
+COPY fonts/ /usr/local/share/fonts/custom/
+RUN fc-cache -f
+
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 

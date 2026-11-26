@@ -128,6 +128,16 @@ Office fonts keep their layout and don't silently reflow onto a fallback
 font. `fonts-liberation` and Noto CJK/emoji fonts are included for broader
 coverage.
 
+### Custom fonts
+
+Drop `.ttf` / `.otf` files (subfolders are fine) into [`fonts/`](fonts/) and
+rebuild; they are copied to `/usr/local/share/fonts/custom/` and registered
+with fontconfig, which LibreOffice uses. The folder is committed empty
+(`.gitkeep`) and its contents are **gitignored**, because some fonts (e.g.
+Century Gothic) are commercially licensed and this repo is public. So only
+local builds include them: images published by CI do not, and an image built
+with proprietary fonts should not be pushed to the public registry.
+
 ## Build
 
 ```bash
