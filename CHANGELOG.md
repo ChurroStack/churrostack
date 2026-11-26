@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0](https://github.com/ChurroStack/churrostack/compare/v1.12.1...v1.13.0) (2026-11-26)
+
+
+### Features
+
+* **api:** serve /alive in all environments ([#69](https://github.com/ChurroStack/churrostack/issues/69)) ([6a67b7f](https://github.com/ChurroStack/churrostack/commit/6a67b7f0d9cc40db7cc622ffab8b10a6deab998c))
+
 ## [1.12.1](https://github.com/ChurroStack/churrostack/compare/v1.12.0...v1.12.1) (2026-11-24)
 
 
